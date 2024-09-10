@@ -1,17 +1,20 @@
-// uploadService.ts
 import axios from 'axios';
 import { getSignedUrl } from './s3Config';
 import { createFileChunks } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
+import NetInfo from '@react-native-community/netinfo';
+
 const LOW_BANDWIDTH_THRESHOLD = 1;
 
 export const uploadFileInChunks = async (fileUri: string, bucketName: string, key: string) => {
   try {
+    // Get network information
+    const networkInfo = await NetInfo.fetch();
     console.log(`Network type: ${networkInfo.type}`);
-    console.log(`Effective network type: ${networkInfo.effectiveType}`);
-    console.log(`Estimated bandwidth: ${networkInfo.downlinkMax} Mbps`);
+    console.log(`Effective network type: ${networkInfo.details.cellularGeneration || 'N/A'}`);
+    console.log(`Estimated bandwidth: ${networkInfo.details.downlink || 'N/A'} Mbps`);
 
     const chunkSize = 5 * 1024 * 1024; // 5MB
     const chunks = await createFileChunks(fileUri, chunkSize);
@@ -37,7 +40,6 @@ export const uploadFileInChunks = async (fileUri: string, bucketName: string, ke
       },
       () => {
         if (uploadId) {
-
           Toast.show({
             type: 'success',
             text1: 'Upload Resumed',
@@ -48,7 +50,6 @@ export const uploadFileInChunks = async (fileUri: string, bucketName: string, ke
     );
 
     for (let i = 0; i < chunks.length; i++) {
-      // Check bandwidth before uploading each chunk
       const bandwidth = await NetworkHelper.getBandwidthEstimate();
       console.log(`Current bandwidth: ${bandwidth} Mbps`);
       if (bandwidth < LOW_BANDWIDTH_THRESHOLD) {
