@@ -1,4 +1,3 @@
-// NetworkHelper.ts
 import NetInfo from '@react-native-community/netinfo';
 
 const LOW_BANDWIDTH_THRESHOLD = 1; // 1 Mbps
@@ -19,8 +18,12 @@ class NetworkHelper {
     return state.details?.downlinkMax || 'unknown';
   }
 
-  static monitorBandwidthChanges(onLowBandwidth: () => void, onInternetLost: () => void, onInternetRegained: () => void) {
-    NetInfo.addEventListener(state => {
+  static monitorBandwidthChanges(
+    onLowBandwidth: () => void,
+    onInternetLost: () => void,
+    onInternetRegained: () => void
+  ) {
+    const unsubscribe = NetInfo.addEventListener(state => {
       const bandwidth = state.details?.downlinkMax || 'unknown';
       if (bandwidth !== 'unknown' && bandwidth < LOW_BANDWIDTH_THRESHOLD) {
         onLowBandwidth();
@@ -31,6 +34,9 @@ class NetworkHelper {
         onInternetRegained();
       }
     });
+
+    // Return the unsubscribe function to allow cleanup
+    return unsubscribe;
   }
 }
 

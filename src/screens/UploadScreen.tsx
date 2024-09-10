@@ -25,6 +25,7 @@ const UploadScreen: React.FC = () => {
       const result = await DocumentPicker.pickSingle({
         type: [DocumentPicker.types.allFiles],
       });
+      console.log(result);
       setFileName(result.name as never);
       startUpload(result.uri, result.name as never);
     } catch (err) {
@@ -33,6 +34,8 @@ const UploadScreen: React.FC = () => {
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
+    console.log(fileUri);
+
     const signedUrl = await uploadFileInChunks(fileUri, 'api-bucketfileupload.growexx.com', fileName);
     console.log(signedUrl);
 
