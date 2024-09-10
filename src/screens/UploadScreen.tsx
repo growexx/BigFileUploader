@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { getSignedUrl } from '../services/s3Config';
 import { uploadFileInChunks } from '../services/uploadService';
 
 const UploadScreen: React.FC = () => {
