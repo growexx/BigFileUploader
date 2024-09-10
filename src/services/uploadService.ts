@@ -2,40 +2,17 @@
 import { createFileChunks } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import Toast from 'react-native-toast-message';
-<<<<<<< Updated upstream
-import { Platform } from 'react-native';
-import RNFS from 'react-native-fs';
-=======
 import BackgroundActions from 'react-native-background-actions';
 import { completeUpload, getPresignedUrls, initiateUpload } from './axiosConfig';
 import axios from 'axios';
-import { getSignedUrl } from './s3Config';
->>>>>>> Stashed changes
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
 const MAX_RETRIES = 3;
 const LOW_BANDWIDTH_THRESHOLD = 1;
-
-  const uploadFileInChunks = async (params: any) => {
+let uploadParts: { ETag: string; PartNumber: number; }[] = [];
+const uploadFileInChunks = async (params: any) => {
   try {
-<<<<<<< Updated upstream
-    // Get network information
-    const networkInfo = await NetworkHelper.getNetworkInfo();
-    console.log(`Network type: ${networkInfo.type}`);
-    console.log(`Effective network type: ${networkInfo.effectiveType}`);
-    console.log(`Estimated bandwidth: ${networkInfo.downlinkMax} Mbps`);
-
-    console.log("fileUri :" + fileUri);
-
-    const chunkSize = 50 * 1024 * 1024; // 5MB
-    const chunks = await createFileChunks(fileUri, chunkSize);
-    const uploadId = await getSignedUrl(bucketName, key);
-    console.log('Upload ID:', uploadId);
-
-    // Monitor bandwidth changes
-    const unsubscribe = NetworkHelper.monitorBandwidthChanges(
-=======
-
+  uploadParts = [];
 const {fileUri, fileType, bucketName, key} = params.taskData;
 console.log('uploadFileInChunks',fileUri);
     //const networkInfo = { type: 'wifi', effectiveType: '4g', downlinkMax: 100 };
@@ -47,14 +24,11 @@ console.log('uploadFileInChunks',fileUri);
     }
 
     console.log(`Network type: ${networkInfo.type}`);
-    const { chunks, totalChunks } = await createFileChunks(fileUri, CHUNK_SIZE);
-    console.log(`File split into ${totalChunks} chunks`);
-    const uploadId = 'test';//await initiateUpload(bucketName, key);
-    const signedUrls = await getSignedUrl('api-bucketfileupload.growexx.com','iostestFile');//await getPresignedUrls(uploadId, key, chunks.map((chunk: Blob) => chunk.size));
+    const chunks  = await createFileChunks(fileUri, CHUNK_SIZE);
+    const uploadId = await initiateUpload(bucketName, key);
+    const signedUrls = await getPresignedUrls(uploadId, key, chunks.map((chunk: Blob) => chunk.size));
     console.log('signedUrls:', signedUrls);
-    const uploadParts: { ETag: string; PartNumber: number }[] = [];
     NetworkHelper.monitorBandwidthChanges(
->>>>>>> Stashed changes
       () => {
         Toast.show({
           type: 'error',
@@ -91,32 +65,10 @@ console.log('uploadFileInChunks',fileUri);
           text2: 'Your internet speed is low. Upload may take longer than expected.',
         });
       }
-<<<<<<< Updated upstream
-
-      const signedUrl = await getSignedUrl(bucketName, `${key}.part${i + 1}`);
-      try {
-        await axios.put(signedUrl, chunks[i], {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
-      } catch (error) {
-        console.error(`Failed to upload chunk ${i + 1}:`, error);
-        Toast.show({
-          type: 'error',
-          text1: 'Upload Failed',
-          text2: `Chunk ${i + 1} failed to upload.`,
-        });
-        // Optional: handle retry logic here
-        break; // Stop further uploads on failure
-      }
-=======
       console.log('Uploading chunk:', chunks[i]);
       await uploadChunkWithRetry(signedUrls, chunks[i], 'application/octet-stream', i, chunks.length);
       console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
-      uploadParts.push({ ETag: 'etag', PartNumber: i + 1 });
->>>>>>> Stashed changes
+
     }
     console.log('Upload completed successfully');
     await completeUpload(uploadId, key, uploadParts);
@@ -162,6 +114,7 @@ export const uploadChunkWithRetry = async (
     });
 
     console.log('response.headers.etag', response.headers.etag);
+    uploadParts.push({ ETag: 'etag', PartNumber: partNumber });
     console.log(`Chunk ${partNumber} uploaded successfully`);
   } catch (error) {
     if (retries < MAX_RETRIES) {
