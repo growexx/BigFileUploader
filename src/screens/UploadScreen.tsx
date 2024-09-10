@@ -6,8 +6,7 @@ import {
   StyleSheet,
   useColorScheme,
 } from 'react-native';
-import DocumentPicker from 'react-native-document-picker';
-// import Upload, { UploadOptions } from 'react-native-background-upload';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
 import { getSignedUrl } from '../services/s3Config';
 import { uploadFileInChunks } from '../services/uploadService';
@@ -17,19 +16,27 @@ const UploadScreen: React.FC = () => {
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [paused, setPaused] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
+  const [fileType, setFileType] = useState<string>(''); // To distinguish between image and video
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const colorScheme = useColorScheme();
 
-  const selectFile = async () => {
+  const selectMedia = async () => {
     try {
-      const result = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.allFiles],
+      const result = await launchImageLibrary({
+        mediaType: 'mixed', // Supports both image and video selection
+        includeBase64: false,
       });
-      console.log(result);
-      setFileName(result.name as never);
-      startUpload(result.uri, result.name as never);
+      if (result.didCancel) {
+        console.log('User cancelled media picker');
+      } else if (result.assets && result.assets.length > 0) {
+        const media = result.assets[0];
+        console.log(media);
+        setFileName(media.fileName as never);
+        setFileType(media.type as never); // Set the file type (e.g., image/jpeg, video/mp4)
+        startUpload(media.uri as never, media.fileName as never);
+      }
     } catch (err) {
-      console.error('Error picking file:', err);
+      console.error('Error picking media:', err);
     }
   };
 
@@ -39,34 +46,26 @@ const UploadScreen: React.FC = () => {
     const signedUrl = await uploadFileInChunks(fileUri, 'api-bucketfileupload.growexx.com', fileName);
     console.log(signedUrl);
 
-
-    try {
-
-    } catch (err) {
-      console.error('Upload error:', err);
-    }
   };
 
   const pauseUpload = () => {
     if (uploadId) {
-      // Upload.pauseUpload(uploadId);
       setPaused(true);
     }
   };
 
   const resumeUpload = () => {
     if (uploadId) {
-      // Upload.resumeUpload(uploadId);
       setPaused(false);
     }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
-      <Text style={styles.title}>Upload File</Text>
-      {fileName ? <Text style={styles.fileName}>Selected File: {fileName}</Text> : null}
-      <TouchableOpacity style={styles.selectButton} onPress={selectFile} disabled={uploadId !== null && !uploadCompleted}>
-        <Text style={styles.buttonText}>Select File</Text>
+      <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
+      {fileName ? <Text style={styles.fileName}>Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}</Text> : null}
+      <TouchableOpacity style={styles.selectButton} onPress={selectMedia} disabled={uploadId !== null && !uploadCompleted}>
+        <Text style={styles.buttonText}>Select {fileType.includes('video') ? 'Video' : 'Image'}</Text>
       </TouchableOpacity>
 
       <Bar
