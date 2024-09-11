@@ -26,7 +26,6 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-	  <!-- Do not change NSAllowsArbitraryLoads to true, or you will risk app rejection! -->
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
@@ -48,24 +47,26 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-    <key>UISupportedDocumentTypes</key>
-    <array>
-      <string>public.movie</string>
-    </array>
-    <key>UTExportedTypeDeclarations</key>
-    <array>
-      <dict>
-        <key>UTTypeIdentifier</key>
-        <string>public.movie</string>
-        <key>UTTypeTagSpecification</key>
-        <dict>
-          <key>public.filename-extension</key>
-          <array>
-            <string>mp4</string>
-            <string>mov</string>
-          </array>
-        </dict>
-      </dict>
-    </array>
+	<key>UISupportedDocumentTypes</key>
+	<array>
+		<string>public.movie</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>public.movie</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mp4</string>
+					<string>mov</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>App needs to gallary access</string>
 </dict>
 </plist>

@@ -24,7 +24,7 @@ export const initiateUpload = async (bucketName: string, fileName: string) => {
 };
 
 export const getPresignedUrls = async (bucketName: string, uploadId: string, key: string, parts: number[]) => {
-  console.log("getPresignedUrls " + uploadId + " :" + key + ":" + parts);
+  console.log('getPresignedUrls ' + uploadId + ' :' + key + ':' + parts);
 
   const response = await axiosInstance.post('/generate-presigned-urls', {
     'bucketName': bucketName,
@@ -44,11 +44,12 @@ export const uploadPart = async (fileChunk: Blob, signedUrl: string) => {
   });
 };
 
-export const completeUpload = async (uploadId: string, key: string, parts: { ETag: string; PartNumber: number }[]) => {
+export const completeUpload = async (uploadId: string, bucketName: string, key: string, parts: { ETag: string; PartNumber: number }[]) => {
   const response = await axiosInstance.post('/complete-upload', {
-    uploadId,
-    key,
-    parts,
+    'bucketName': bucketName,
+    'uploadId': uploadId,
+    'key': key,
+    'parts': parts,
   });
   console.log('completeUpload : ' + response);
 

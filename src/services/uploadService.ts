@@ -6,7 +6,7 @@ import BackgroundActions from 'react-native-background-actions';
 import { completeUpload, getPresignedUrls, initiateUpload } from './axiosConfig';
 import axios from 'axios';
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per chunk
+const CHUNK_SIZE = 6 * 1024 * 1024; // 5 MB per chunk
 const MAX_RETRIES = 3;
 const LOW_BANDWIDTH_THRESHOLD = 1;
 let uploadParts: { ETag: string; PartNumber: number; }[] = [];
@@ -24,10 +24,11 @@ const uploadFileInChunks = async (params: any) => {
     }
 
     console.log(`Network type: ${networkInfo.type}`);
-    const chunks = await createFileChunks(fileUri, CHUNK_SIZE);
+    const {chunks, partNumbers} = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
-    const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, chunks.map((chunk: Blob) => chunk.size));
+    const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
     console.log('signedUrls:', signedUrls);
+    console.log('partNumbers:', partNumbers);
     NetworkHelper.monitorBandwidthChanges(
       () => {
         Toast.show({
@@ -65,13 +66,14 @@ const uploadFileInChunks = async (params: any) => {
           text2: 'Your internet speed is low. Upload may take longer than expected.',
         });
       }
-      console.log('Uploading chunk:', chunks[i].data);
-      await uploadChunkWithRetry(signedUrls[i], chunks[i], 'application/octet-stream', i, chunks.length);
+      console.log('Uploading chunk:', chunks[i]);
+      await uploadChunkWithRetry(signedUrls[i], chunks[i], 'application/octet-stream', i+1, chunks.length);
       console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
 
     }
     console.log('Upload completed successfully');
-    await completeUpload(uploadId, key, uploadParts);
+    console.log('uploadParts',uploadParts);
+    await completeUpload(uploadId,bucketName, fileName, uploadParts);
 
   } catch (err) {
     console.error('Upload failed:', err);
