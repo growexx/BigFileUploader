@@ -114,7 +114,7 @@ export const uploadChunkWithRetry = async (
     });
 
     console.log('response.headers.etag', response.headers.etag);
-    uploadParts.push({ ETag: 'etag', PartNumber: partNumber });
+    uploadParts.push({ ETag: response.headers.etag, PartNumber: partNumber });
     console.log(`Chunk ${partNumber} uploaded successfully`);
   } catch (error) {
     if (retries < MAX_RETRIES) {
