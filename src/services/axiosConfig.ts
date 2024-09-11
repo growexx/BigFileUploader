@@ -1,33 +1,39 @@
 // axiosConfig.ts
 import axios from 'axios';
 
-// Import the module or define the type for 'BackgroundActions'
-
 const axiosInstance = axios.create({
-  baseURL: 'https://api.example.com', // Replace with your API base URL
-  timeout: 1000,
+  baseURL: 'http://10.10.3.31:3001/api/file-upload',
+
+  timeout: 5000,
   headers: {},
 });
 
 export default axiosInstance;
 
-export const initiateUpload = async (fileName: string, fileType: string) => {
+export const initiateUpload = async (bucketName: string, fileName: string) => {
+  console.log(bucketName + ' && ' + fileName);
+
   const response = await axiosInstance.post('/initiate-upload', {
-    fileName,
-    fileType,
+    'bucketName': bucketName,
+    'key': fileName,
   });
 
-  return response.data; // Contains `uploadId` and `key`
+  console.log('response:', JSON.stringify(response.data));
+
+  return response.data.UploadId;
 };
 
-export const getPresignedUrls = async (uploadId: string, key: string, parts: number[]) => {
-  const response = await axiosInstance.post('/presigned-urls', {
-    uploadId,
-    key,
-    parts,
+export const getPresignedUrls = async (bucketName: string, uploadId: string, key: string, parts: number[]) => {
+  console.log("getPresignedUrls " + uploadId + " :" + key + ":" + parts);
+
+  const response = await axiosInstance.post('/generate-presigned-urls', {
+    'bucketName': bucketName,
+    'uploadId': uploadId,
+    'key': key,
+    'partNumbers': parts,
   });
 
-  return response.data; // Contains array of { partNumber, signedUrl }
+  return response.data.presignedUrls; // Contains array of { partNumber, signedUrl }
 };
 
 export const uploadPart = async (fileChunk: Blob, signedUrl: string) => {
@@ -44,6 +50,7 @@ export const completeUpload = async (uploadId: string, key: string, parts: { ETa
     key,
     parts,
   });
+  console.log('completeUpload : ' + response);
 
   return response.data; // Contains completion message and location in S3
 };

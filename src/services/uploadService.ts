@@ -12,21 +12,21 @@ const LOW_BANDWIDTH_THRESHOLD = 1;
 let uploadParts: { ETag: string; PartNumber: number; }[] = [];
 const uploadFileInChunks = async (params: any) => {
   try {
-  uploadParts = [];
-const {fileUri, fileType, bucketName, key} = params.taskData;
-console.log('uploadFileInChunks',fileUri);
+    uploadParts = [];
+    const { fileUri, fileType, bucketName, fileName } = params.taskData;
+    console.log('uploadFileInChunks', fileUri);
     //const networkInfo = { type: 'wifi', effectiveType: '4g', downlinkMax: 100 };
-  //
-  // Check initial network connectivity and bandwidth
+    //
+    // Check initial network connectivity and bandwidth
     const networkInfo = await NetworkHelper.getNetworkInfo();
     if (!networkInfo.isConnected) {
       throw new Error('No network connection');
     }
 
     console.log(`Network type: ${networkInfo.type}`);
-    const chunks  = await createFileChunks(fileUri, CHUNK_SIZE);
-    const uploadId = await initiateUpload(bucketName, key);
-    const signedUrls = await getPresignedUrls(uploadId, key, chunks.map((chunk: Blob) => chunk.size));
+    const chunks = await createFileChunks(fileUri, CHUNK_SIZE);
+    const uploadId = await initiateUpload(bucketName, fileName);
+    const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, chunks.map((chunk: Blob) => chunk.size));
     console.log('signedUrls:', signedUrls);
     NetworkHelper.monitorBandwidthChanges(
       () => {
@@ -65,8 +65,8 @@ console.log('uploadFileInChunks',fileUri);
           text2: 'Your internet speed is low. Upload may take longer than expected.',
         });
       }
-      console.log('Uploading chunk:', chunks[i]);
-      await uploadChunkWithRetry(signedUrls, chunks[i], 'application/octet-stream', i, chunks.length);
+      console.log('Uploading chunk:', chunks[i].data);
+      await uploadChunkWithRetry(signedUrls[i], chunks[i], 'application/octet-stream', i, chunks.length);
       console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
 
     }
@@ -93,7 +93,10 @@ export const uploadChunkWithRetry = async (
   retries = 0,
 ) => {
   try {
-    const response =  await axios.put(signedUrl, chunk, {
+    console.log("i am here");
+    console.log('signedUrl:' + signedUrl + ' ---partNumber:' + partNumber + ' ---totalParts:' + totalParts + ' ---chunk:' + chunk);
+
+    const response = await axios.put(signedUrl, chunk, {
       headers: {
         'Content-Type': 'application/octet-stream',
       },
@@ -119,8 +122,7 @@ export const uploadChunkWithRetry = async (
   } catch (error) {
     if (retries < MAX_RETRIES) {
       console.log(
-        `Retrying chunk ${partNumber} (attempt ${
-          retries + 1
+        `Retrying chunk ${partNumber} (attempt ${retries + 1
         } of ${MAX_RETRIES})`,
       );
       await uploadChunkWithRetry(
@@ -143,8 +145,12 @@ export const uploadChunkWithRetry = async (
 
 // Function to start the upload
 const startUpload = async (options: any) => {
-
+  console.log("background upload started");
+  console.log(options)
   await BackgroundActions.start(uploadFileInChunks, options);
+  // await uploadFileInChunks(options);
+  console.log("background upload ended");
+
 };
 
 // Function to stop the task
@@ -153,30 +159,39 @@ const stopUpload = async () => {
   console.log('Background upload stopped');
 };
 
-export const BackgroundChunkedUpload = async (fileUri: string | null) => {
-  console.log('Background upload started',fileUri);
-// Background task options
-const options = {
-  taskName: 'File Upload',
-  taskTitle: 'Uploading File in Background',
-  taskDesc: 'File is being uploaded in the background.',
-  taskIcon: {
-    name: 'ic_upload',
-    type: 'drawable',
-  },
-  color: '#ff0000',
-  linkingURI: 'yourapp://upload',
-  progressBar: { max: 100, value: 0 },
-  parameters: {
+export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: string) => {
+  console.log('Background upload started', fileUri);
+  // Background task options
+  const options = {
+    taskName: 'File Upload',
+    taskTitle: 'Uploading File in Background',
+    taskDesc: 'File is being uploaded in the background.',
+    taskIcon: {
+      name: 'ic_launcher',
+      type: 'drawable',
+    },
+    color: '#ff0000',
+    linkingURI: 'yourapp://upload',
+    progressBar: { max: 100, value: 0 },
+    parameters: {
+      delay: 1000,
+      taskData: {
+        fileUri: fileUri, // Example file URI
+        bucketName: 'api-bucketfileupload.growexx.com', // Signed URL for S3
+        fileType: 'video/mp4',
+        fileName: fileName
+      },
+    },
+  };
+  uploadFileInChunks({
     delay: 1000,
     taskData: {
       fileUri: fileUri, // Example file URI
       bucketName: 'api-bucketfileupload.growexx.com', // Signed URL for S3
       fileType: 'video/mp4',
+      fileName: fileName
     },
-  },
-};
-
-  //await BackgroundActions.start(uploadFileInChunks, options);
- startUpload(options);
+  })
+  // await BackgroundActions.start(uploadFileInChunks, options);
+  // startUpload(options);
 };
