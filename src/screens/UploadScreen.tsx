@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { BackgroundChunkedUpload, uploadFileInChunks } from '../services/uploadService';
+import { BackgroundChunkedUpload } from '../services/uploadService';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -29,10 +29,9 @@ const UploadScreen: React.FC = () => {
         console.log('User cancelled media picker');
       } else if (result.assets && result.assets.length > 0) {
         const media = result.assets[0];
-        console.log(media);
-        setFileName(media.fileName as never);
-        setFileType(media.type as never); // Set the file type (e.g., image/jpeg, video/mp4)
-        startUpload(media.uri as never, media.fileName as never);
+        setFileName(media.fileName as string);
+        setFileType(media.type as string); // Set the file type (e.g., image/jpeg, video/mp4)
+        startUpload(media.uri as string, media.fileName as string);
       }
     } catch (err) {
       console.error('Error picking media:', err);
@@ -40,21 +39,23 @@ const UploadScreen: React.FC = () => {
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
-    console.log(fileUri);
-    BackgroundChunkedUpload(fileUri ?? '', fileName);
-
-
+    setUploadId('some-unique-id'); // Set a unique ID for the upload if needed
+    BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+      setProgress(progress);
+    });
   };
 
   const pauseUpload = () => {
     if (uploadId) {
       setPaused(true);
+      // Call service to pause upload if needed
     }
   };
 
   const resumeUpload = () => {
     if (uploadId) {
       setPaused(false);
+      // Call service to resume upload if needed
     }
   };
 
