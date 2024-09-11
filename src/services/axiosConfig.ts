@@ -1,28 +1,57 @@
 // axiosConfig.ts
 import axios from 'axios';
-import { getSignedUrl } from './s3Config';
 
 const axiosInstance = axios.create({
-  baseURL: 'https://api.example.com', // Replace with your API base URL
-  timeout: 1000,
+  baseURL: 'http://10.10.3.31:3001/api/file-upload',
+
+  timeout: 5000,
   headers: {},
 });
 
-export const uploadFileToS3 = async (fileUri: string, bucketName: string, key: string) => {
-    try {
-      const signedUrl = await getSignedUrl(bucketName, key);
-      const file = await fetch(fileUri);
-      const blob = await file.blob();
-
-      const response = await axios.put(signedUrl, blob, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('Upload successful:', response);
-    } catch (err) {
-      console.error('Upload failed:', err);
-    }
-  };
 export default axiosInstance;
+
+export const initiateUpload = async (bucketName: string, fileName: string) => {
+  console.log(bucketName + ' && ' + fileName);
+
+  const response = await axiosInstance.post('/initiate-upload', {
+    'bucketName': bucketName,
+    'key': fileName,
+  });
+
+  console.log('response:', JSON.stringify(response.data));
+
+  return response.data.UploadId;
+};
+
+export const getPresignedUrls = async (bucketName: string, uploadId: string, key: string, parts: number[]) => {
+  console.log('getPresignedUrls ' + uploadId + ' :' + key + ':' + parts);
+
+  const response = await axiosInstance.post('/generate-presigned-urls', {
+    'bucketName': bucketName,
+    'uploadId': uploadId,
+    'key': key,
+    'partNumbers': parts,
+  });
+
+  return response.data.presignedUrls; // Contains array of { partNumber, signedUrl }
+};
+
+export const uploadPart = async (fileChunk: Blob, signedUrl: string) => {
+  await axios.put(signedUrl, fileChunk, {
+    headers: {
+      'Content-Type': 'application/octet-stream', // Use appropriate content type
+    },
+  });
+};
+
+export const completeUpload = async (uploadId: string, bucketName: string, key: string, parts: { ETag: string; PartNumber: number }[]) => {
+  const response = await axiosInstance.post('/complete-upload', {
+    'bucketName': bucketName,
+    'uploadId': uploadId,
+    'key': key,
+    'parts': parts,
+  });
+  console.log('completeUpload : ' + response);
+
+  return response.data; // Contains completion message and location in S3
+};

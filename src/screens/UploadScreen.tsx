@@ -8,8 +8,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { getSignedUrl } from '../services/s3Config';
-import { uploadFileInChunks } from '../services/uploadService';
+import { BackgroundChunkedUpload, uploadFileInChunks } from '../services/uploadService';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -42,9 +41,8 @@ const UploadScreen: React.FC = () => {
 
   const startUpload = async (fileUri: string, fileName: string) => {
     console.log(fileUri);
+    BackgroundChunkedUpload(fileUri ?? '', fileName);
 
-    const signedUrl = await uploadFileInChunks(fileUri, 'api-bucketfileupload.growexx.com', fileName);
-    console.log(signedUrl);
 
   };
 
