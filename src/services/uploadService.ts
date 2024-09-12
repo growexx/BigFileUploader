@@ -80,10 +80,9 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       // Restart chunk upload if necessary
       const chunk = chunks[i];
       const signedUrl = signedUrls[i];
-      console.log('Uploading chunk:', chunk.size);
       let uploadDetails = {
         status: 'uploading',
-        signedUrl: signedUrl,
+        signedUrl: signedUrls,
         uploadId: uploadId,
         fileUri: params.taskData.fileUri,
         fileType: params.taskData.fileType,
@@ -252,10 +251,10 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
 
 // Export pause and resume functions
 export const pauseUpload = () => {
-  isPaused = true;
-  console.log('Pause requested');
-  StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
-  // StorageHelper.clearAll();
+  // isPaused = true;
+  // console.log('Pause requested');
+  // StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
+  StorageHelper.clearAll();
 
 };
 
@@ -269,25 +268,24 @@ export const resumeUpload = () => {
 export const handleUploadWhenAppIsOpened = async () => {
 
   const uploadDetails = await StorageHelper.getItem('uploadDetails');
-  console.log('uploadDetails:   ', uploadDetails);
   if (uploadDetails) {
-    const { status, bucketName, uploadId, fileUri, fileName, signedUrls, partNumber } = JSON.parse(uploadDetails);
-    console.log('status:', status);
+    const { status, bucketName, uploadId, fileUri, fileName, partNumber, signedUrl } = JSON.parse(uploadDetails);
     if (status === 'uploading') {
       //called createChunks
       const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
-      if (partNumbers.length == partNumber) return;
+      if (partNumbers.length == partNumber)
+        return;
       for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const signedUrl = signedUrls[i];
-        console.log('Uploading chunk:', chunk.size);
-        if (partNumber >= i + 1) {
-          await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
+        if (partNumber <= i + 1) {
+          try {
+            await uploadChunkWithRetry(signedUrl[i], chunks[i], 'application/octet-stream', i + 1, chunks.length);
+          } catch (error) {
+            console.error(`Error uploading chunk ${i + 1}:`, error);
+          }
         }
       }
-      //call completeUpload
       const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
-      console.log('upload', JSON.stringify(upload));
+      console.log('upload with After App refreshed', JSON.stringify(upload));
     }
   }
 }

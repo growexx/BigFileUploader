@@ -26,15 +26,13 @@ const UploadScreen: React.FC = () => {
       console.log("KKKKKKK " + uploadDetails);
 
       if (uploadDetails) {
-        const { status, fileUri, fileName } = JSON.parse(uploadDetails);
+        const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
         console.log("JJJJJJJJJJJJJJJJJJJ " + status + " " + fileName + " " + fileUri);
 
         if (status === 'paused' || status === 'uploading') {
           setFileName(fileName);
           setFileType('mixed');
-          console.log("ZZZZZZZZZZZZZZZZZZZZ " + await StorageHelper.getItem('uploadId'));
-
-          setUploadId(await StorageHelper.getItem('uploadId'));
+          setUploadId(uploadId);
           handleUploadWhenAppIsOpened()
         }
       }
