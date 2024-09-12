@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +9,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { BackgroundChunkedUpload } from '../services/uploadService';
+import { BackgroundChunkedUpload, pauseUpload, resumeUpload } from '../services/uploadService';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -18,6 +19,14 @@ const UploadScreen: React.FC = () => {
   const [fileType, setFileType] = useState<string>('');
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    return () => {
+      if (uploadId) {
+        // Call stopUpload or similar cleanup function if needed
+      }
+    };
+  }, [uploadId]);
 
   const selectMedia = async () => {
     try {
@@ -58,16 +67,19 @@ const UploadScreen: React.FC = () => {
 
   const togglePauseResume = () => {
     setPaused(!paused);
-    // Add pause/resume logic here if needed
+    if (paused) {
+      resumeUpload();
+    } else {
+      pauseUpload();
+    }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
       <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
 
-      {fileName ? <Text style={styles.fileName}>Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}</Text> : null}
+      {fileName && <Text style={styles.fileName}>Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}</Text>}
 
-      {/* Show the Progress Bar and Pause/Resume Button during the upload */}
       {uploadId && (
         <>
           <View style={styles.progressContainer}>
@@ -91,7 +103,6 @@ const UploadScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Show Cancel button when upload completes */}
           {uploadCompleted && (
             <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
               <Text style={styles.buttonText}>Cancel</Text>
@@ -100,7 +111,6 @@ const UploadScreen: React.FC = () => {
         </>
       )}
 
-      {/* Show the Select button only if there's no ongoing upload */}
       {!uploadId && (
         <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
           <Text style={styles.buttonText}>Select {fileType.includes('video') ? 'Video' : 'Image'}</Text>
@@ -118,37 +128,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 20,
   },
   fileName: {
     fontSize: 16,
-    marginBottom: 10,
-  },
-  selectButton: {
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
     marginBottom: 20,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
   progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
+    width: '100%',
     marginBottom: 20,
   },
   progressBar: {
-    width: '80%',
-    marginRight: 10,
+    borderRadius: 5,
   },
   progressText: {
+    textAlign: 'center',
+    marginTop: 5,
     fontSize: 16,
-    color: '#333',
   },
   pauseButton: {
     backgroundColor: '#007bff',
@@ -157,10 +155,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   cancelButton: {
-    backgroundColor: '#ff0000',
+    backgroundColor: '#dc3545',
     padding: 10,
     borderRadius: 5,
+  },
+  selectButton: {
+    backgroundColor: '#28a745',
+    padding: 10,
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
   },
 });
 
 export default UploadScreen;
+
+

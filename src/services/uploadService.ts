@@ -1,15 +1,16 @@
-// uploadService.ts
 import { createFileChunks } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import Toast from 'react-native-toast-message';
 import BackgroundActions from 'react-native-background-actions';
 import { completeUpload, getPresignedUrls, initiateUpload } from './axiosConfig';
 import axios from 'axios';
+import StorageHelper from '../helper/LocalStorage';
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 10 MB per chunk
+const CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_RETRIES = 3;
 const LOW_BANDWIDTH_THRESHOLD = 1;
 let uploadParts: { ETag: string; PartNumber: number; }[] = [];
+let isPaused = false;
 
 const uploadFileInChunks = async (params: any, progressCallback?: (progress: number) => void) => {
   try {
@@ -22,11 +23,26 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       throw new Error('No network connection');
     }
 
+    const uploadDetails = {
+      status: 'uploading',
+      fileUri,
+      fileType,
+      bucketName,
+      fileName,
+    };
+
+    await StorageHelper.setItem('uploadDetails', JSON.stringify(uploadDetails));
+    console.log("LocalStorage uploadDetails:", await StorageHelper.getItem('uploadDetails'));
+
     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
+
+    await StorageHelper.setItem('uploadId', uploadId);
+    console.log('Upload ID saved to local storage:', uploadId);
+
     const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
-    console.log('signedUrls:', signedUrls);
-    console.log('partNumbers:', partNumbers);
+    await StorageHelper.setItem('signedUrls', JSON.stringify(signedUrls));
+    console.log('Signed URLs saved to local storage:', signedUrls);
 
     NetworkHelper.monitorBandwidthChanges(
       () => {
@@ -67,14 +83,24 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
           text2: 'Your internet speed is low. Upload may take longer than expected.',
         });
       }
-      console.log('Uploading chunk:', chunks[i].size);
-      await uploadChunkWithRetry(signedUrls[i], chunks[i], 'application/octet-stream', i + 1, chunks.length);
+
+      while (isPaused) {
+        console.log('Upload paused, waiting to resume...');
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait until resume
+      }
+
+      // Restart chunk upload if necessary
+      const chunk = chunks[i];
+      const signedUrl = signedUrls[i];
+      console.log('Uploading chunk:', chunk.size);
+      await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
       totalProgress = Math.round(((i + 1) / chunks.length) * 100);
       if (progressCallback) {
         progressCallback(totalProgress);
       }
       console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
     }
+
     console.log('Upload completed successfully');
     console.log('uploadParts', uploadParts);
     const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
@@ -84,6 +110,9 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       text1: 'Upload Complete',
       text2: 'File uploaded successfully.',
     });
+
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'completed' }));
+    console.log("LocalStorage uploadDetails (completed):", await StorageHelper.getItem('uploadDetails'));
   } catch (err) {
     console.error('Upload failed:', err);
     Toast.show({
@@ -91,8 +120,12 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       text1: 'Upload Error',
       text2: 'An error occurred during the upload.',
     });
+
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'failed' }));
+    console.log("LocalStorage uploadDetails (failed):", await StorageHelper.getItem('uploadDetails'));
   }
 };
+
 const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -103,7 +136,7 @@ const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
     reader.readAsArrayBuffer(blob);
   });
 };
-// Function to upload a chunk with retry logic
+
 export const uploadChunkWithRetry = async (
   signedUrl: string,
   chunk: any,
@@ -113,7 +146,6 @@ export const uploadChunkWithRetry = async (
   retries = 0,
 ) => {
   try {
-
     console.log("i am here");
     console.log('signedUrl:' + signedUrl + ' ---partNumber:' + partNumber + ' ---totalParts:' + totalParts + ' ---chunk:' + chunk);
     console.log('chunk size', chunk.size);
@@ -165,18 +197,17 @@ export const uploadChunkWithRetry = async (
   }
 };
 
-
-// Function to start the upload
 const startUpload = async (options: any) => {
   console.log("background upload started");
-  console.log(options)
-  await BackgroundActions.start(uploadFileInChunks, options);
-  // await uploadFileInChunks(options);
-  console.log("background upload ended");
+  console.log(options);
 
+  await StorageHelper.setItem('uploadStatus', 'started');
+  console.log('Upload status set to "started"');
+
+  await BackgroundActions.start(uploadFileInChunks, options);
+  console.log("background upload ended");
 };
 
-// Function to stop the task
 const stopUpload = async () => {
   await BackgroundActions.stop();
   console.log('Background upload stopped');
@@ -204,14 +235,12 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
       },
     },
     progressCallback: (progress: number) => {
-      // Implement the progress callback here
       if (progressCallback) {
         progressCallback(progress);
       }
     }
   };
 
-  // Pass progress callback to uploadFileInChunks
   uploadFileInChunks({
     delay: 1000,
     taskData: {
@@ -221,4 +250,19 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
       fileName: fileName
     },
   }, options.progressCallback);
+};
+
+// Export pause and resume functions
+export const pauseUpload = () => {
+  isPaused = true;
+  console.log('Pause requested');
+  // Optionally save to local storage
+  StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
+};
+
+export const resumeUpload = () => {
+  isPaused = false;
+  console.log('Resume requested');
+  // Optionally save to local storage
+  StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
 };
