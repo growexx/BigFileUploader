@@ -23,11 +23,9 @@ const UploadScreen: React.FC = () => {
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
-      console.log("KKKKKKK " + uploadDetails);
 
       if (uploadDetails) {
         const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
-        console.log("JJJJJJJJJJJJJJJJJJJ " + status + " " + fileName + " " + fileUri);
 
         if (status === 'paused' || status === 'uploading') {
           setFileName(fileName);
@@ -44,7 +42,7 @@ const UploadScreen: React.FC = () => {
   const selectMedia = async () => {
     try {
       const result = await launchImageLibrary({
-        mediaType: 'mixed', // Supports both image and video selection
+        mediaType: 'mixed',
         includeBase64: false,
       });
       if (result.didCancel) {
@@ -52,7 +50,7 @@ const UploadScreen: React.FC = () => {
       } else if (result.assets && result.assets.length > 0) {
         const media = result.assets[0];
         setFileName(media.fileName as string);
-        setFileType(media.type as string); // Set the file type (e.g., image/jpeg, video/mp4)
+        setFileType(media.type as string);
         startUpload(media.uri as string, media.fileName as string);
       }
     } catch (err) {
@@ -61,8 +59,8 @@ const UploadScreen: React.FC = () => {
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
-    setUploadId('some-unique-id'); // Generate a unique ID for the upload
-    setUploadCompleted(false); // Reset upload completed state
+    setUploadId('some-unique-id');
+    setUploadCompleted(false);
     await StorageHelper.setItem('uploadDetails', JSON.stringify({
       status: 'uploading',
       fileUri,
@@ -71,7 +69,7 @@ const UploadScreen: React.FC = () => {
     BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
       setProgress(progress);
       if (progress === 100) {
-        setUploadCompleted(true); // Mark upload as complete when progress reaches 100%
+        setUploadCompleted(true);
       }
     });
   };
@@ -81,8 +79,8 @@ const UploadScreen: React.FC = () => {
     setUploadId(null);
     setFileName('');
     setUploadCompleted(false);
-    StorageHelper.removeItem('uploadDetails'); // Clear upload details from storage
-    StorageHelper.removeItem('uploadId'); // Clear upload ID from storage
+    StorageHelper.removeItem('uploadDetails');
+    StorageHelper.removeItem('uploadId');
   };
 
   const togglePauseResume = async () => {

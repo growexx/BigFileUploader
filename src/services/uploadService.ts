@@ -74,10 +74,9 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
 
       while (isPaused) {
         console.log('Upload paused, waiting to resume...');
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait until resume
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
-      // Restart chunk upload if necessary
       const chunk = chunks[i];
       const signedUrl = signedUrls[i];
       let uploadDetails = {
@@ -249,7 +248,6 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
   }, options.progressCallback);
 };
 
-// Export pause and resume functions
 export const pauseUpload = () => {
   // isPaused = true;
   // console.log('Pause requested');
@@ -261,7 +259,6 @@ export const pauseUpload = () => {
 export const resumeUpload = () => {
   isPaused = false;
   console.log('Resume requested');
-  // Optionally save to local storage
   StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
 };
 
@@ -271,7 +268,6 @@ export const handleUploadWhenAppIsOpened = async () => {
   if (uploadDetails) {
     const { status, bucketName, uploadId, fileUri, fileName, partNumber, signedUrl } = JSON.parse(uploadDetails);
     if (status === 'uploading') {
-      //called createChunks
       const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
       if (partNumbers.length == partNumber)
         return;
