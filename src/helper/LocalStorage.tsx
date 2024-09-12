@@ -26,6 +26,13 @@ class StorageHelper {
       console.error('AsyncStorage Error: ', error);
     }
   }
+  static async clearAll(): Promise<void> {
+    try {
+      await AsyncStorage.clear();
+    } catch (error) {
+      console.error('AsyncStorage Error: ', error);
+    }
+  }
 }
 
 export default StorageHelper;
