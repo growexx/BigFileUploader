@@ -268,3 +268,28 @@ export const resumeUpload = () => {
   // Optionally save to local storage
   StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
 };
+
+export const handleUploadWhenAppIsOpened = async () => {
+
+  const uploadDetails = await StorageHelper.getItem('uploadDetails');
+  console.log('uploadDetails:', uploadDetails);
+  if (uploadDetails) {
+    const { status,bucketName, uploadId, fileUri, fileName, signedUrls, currentPartNumber } = JSON.parse(uploadDetails);
+    console.log('status:', status);
+    if (status === 'uploading') {
+     //called createChunks
+     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
+     for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const signedUrl = signedUrls[i];
+      console.log('Uploading chunk:', chunk.size);
+      if (currentPartNumber >= i + 1) {
+      await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
+      }
+     }
+     //call completeUpload
+      const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
+      console.log('upload', JSON.stringify(upload));
+    }
+  }
+}
