@@ -6,7 +6,7 @@ import BackgroundActions from 'react-native-background-actions';
 import { completeUpload, getPresignedUrls, initiateUpload } from './axiosConfig';
 import axios from 'axios';
 
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB per chunk
+const CHUNK_SIZE = 5 * 1024 * 1024; // 10 MB per chunk
 const MAX_RETRIES = 3;
 const LOW_BANDWIDTH_THRESHOLD = 1;
 let uploadParts: { ETag: string; PartNumber: number; }[] = [];
@@ -77,8 +77,13 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
     }
     console.log('Upload completed successfully');
     console.log('uploadParts', uploadParts);
-    await completeUpload(uploadId, bucketName, fileName, uploadParts);
-
+    const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
+    console.log('upload', JSON.stringify(upload));
+    Toast.show({
+      type: 'success',
+      text1: 'Upload Complete',
+      text2: 'File uploaded successfully.',
+    });
   } catch (err) {
     console.error('Upload failed:', err);
     Toast.show({
@@ -88,29 +93,93 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
     });
   }
 };
+const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result as ArrayBuffer);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(blob);
+  });
+};
+// Function to upload a chunk with retry logic
+export const uploadChunkWithRetry = async (
+  signedUrl: string,
+  chunk: any,
+  fileType: string,
+  partNumber: number,
+  totalParts: number,
+  retries = 0,
+) => {
+  try {
 
-const uploadChunkWithRetry = async (url: string, chunk: Blob, contentType: string, partNumber: number, totalParts: number) => {
-  let retryCount = 0;
-  while (retryCount < MAX_RETRIES) {
-    try {
-      const response = await axios.put(url, chunk, {
-        headers: {
-          'Content-Type': contentType,
-        },
-      });
-      console.log(`Chunk ${partNumber} uploaded successfully`);
-      uploadParts.push({
-        ETag: response.headers.etag,
-        PartNumber: partNumber,
-      });
-      return;
-    } catch (error) {
-      console.error(`Failed to upload chunk ${partNumber}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`, error);
-      retryCount++;
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retrying
+    console.log("i am here");
+    console.log('signedUrl:' + signedUrl + ' ---partNumber:' + partNumber + ' ---totalParts:' + totalParts + ' ---chunk:' + chunk);
+    console.log('chunk size', chunk.size);
+    const arrayBuffer = await blobToArrayBuffer(chunk);
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const response = await axios.put(signedUrl, uint8Array, {
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+      onUploadProgress: progressEvent => {
+        const progress = Math.round(
+          (progressEvent.loaded * 100) / (progressEvent.total ?? 0),
+        );
+        console.log(`Chunk ${partNumber} upload progress: ${progress}%`);
+        BackgroundActions.updateNotification({
+          progressBar: {
+            max: 100,
+            value: Math.round(
+              ((partNumber - 1 + progress / 100) / totalParts) * 100,
+            ),
+          },
+        });
+      },
+    });
+
+    console.log('response.headers.etag', response.headers.etag);
+    uploadParts.push({ ETag: response.headers.etag, PartNumber: partNumber });
+    console.log(`Chunk ${partNumber} uploaded successfully`);
+  } catch (error) {
+    if (retries < MAX_RETRIES) {
+      console.log(
+        `Retrying chunk ${partNumber} (attempt ${retries + 1
+        } of ${MAX_RETRIES})`,
+      );
+      await uploadChunkWithRetry(
+        signedUrl,
+        chunk,
+        fileType,
+        partNumber,
+        totalParts,
+        retries + 1,
+      );
+    } else {
+      console.error(
+        `Failed to upload chunk ${partNumber} after ${MAX_RETRIES} attempts.`,
+      );
+      throw error;
     }
   }
-  throw new Error(`Failed to upload chunk ${partNumber} after ${MAX_RETRIES} retries`);
+};
+
+
+// Function to start the upload
+const startUpload = async (options: any) => {
+  console.log("background upload started");
+  console.log(options)
+  await BackgroundActions.start(uploadFileInChunks, options);
+  // await uploadFileInChunks(options);
+  console.log("background upload ended");
+
+};
+
+// Function to stop the task
+const stopUpload = async () => {
+  await BackgroundActions.stop();
+  console.log('Background upload stopped');
 };
 
 export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: string, progressCallback?: (progress: number) => void) => {
