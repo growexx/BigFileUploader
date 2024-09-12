@@ -15,7 +15,7 @@ const UploadScreen: React.FC = () => {
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [paused, setPaused] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>('');
-  const [fileType, setFileType] = useState<string>(''); // To distinguish between image and video
+  const [fileType, setFileType] = useState<string>('');
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const colorScheme = useColorScheme();
 
@@ -40,61 +40,72 @@ const UploadScreen: React.FC = () => {
 
   const startUpload = async (fileUri: string, fileName: string) => {
     setUploadId('some-unique-id'); // Set a unique ID for the upload if needed
+    setUploadCompleted(false); // Reset upload completed state
     BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
       setProgress(progress);
+      if (progress === 100) {
+        setUploadCompleted(true); // Mark upload as complete when progress reaches 100%
+      }
     });
   };
 
-  const pauseUpload = () => {
-    if (uploadId) {
-      setPaused(true);
-      // Call service to pause upload if needed
-    }
+  const resetUpload = () => {
+    setProgress(0);
+    setUploadId(null);
+    setFileName('');
+    setUploadCompleted(false);
   };
 
-  const resumeUpload = () => {
-    if (uploadId) {
-      setPaused(false);
-      // Call service to resume upload if needed
-    }
+  const togglePauseResume = () => {
+    setPaused(!paused);
+    // Add pause/resume logic here if needed
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
       <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
+
       {fileName ? <Text style={styles.fileName}>Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}</Text> : null}
-      <TouchableOpacity style={styles.selectButton} onPress={selectMedia} disabled={uploadId !== null && !uploadCompleted}>
-        <Text style={styles.buttonText}>Select {fileType.includes('video') ? 'Video' : 'Image'}</Text>
-      </TouchableOpacity>
 
-      <Bar
-        progress={progress / 100}
-        width={null}
-        height={10}
-        style={styles.progressBar}
-        color="#007bff"
-        unfilledColor="#e0e0e0"
-      />
-      <Text style={styles.progressText}>{progress}%</Text>
+      {/* Show the Progress Bar and Pause/Resume Button during the upload */}
+      {uploadId && (
+        <>
+          <View style={styles.progressContainer}>
+            <Bar
+              progress={progress / 100}
+              width={null}
+              height={10}
+              style={styles.progressBar}
+              color="#007bff"
+              unfilledColor="#e0e0e0"
+            />
+            <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
+          </View>
 
-      <View style={styles.buttonsContainer}>
-        {!uploadCompleted && (
-          <>
-            <TouchableOpacity style={[styles.controlButton, styles.pauseButton]} onPress={pauseUpload} disabled={paused}>
-              <Text style={styles.buttonText}>Pause</Text>
+          {!uploadCompleted && (
+            <TouchableOpacity
+              style={styles.pauseButton}
+              onPress={togglePauseResume}
+            >
+              <Text style={styles.buttonText}>{paused ? 'Resume' : 'Pause'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.controlButton, styles.resumeButton]} onPress={resumeUpload} disabled={!paused}>
-              <Text style={styles.buttonText}>Resume</Text>
-            </TouchableOpacity>
-          </>
-        )}
+          )}
 
-        {uploadCompleted && (
-          <TouchableOpacity style={styles.uploadButton} onPress={() => console.log('Upload completed!')}>
-            <Text style={styles.buttonText}>Upload Completed</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          {/* Show Cancel button when upload completes */}
+          {uploadCompleted && (
+            <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
+
+      {/* Show the Select button only if there's no ongoing upload */}
+      {!uploadId && (
+        <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
+          <Text style={styles.buttonText}>Select {fileType.includes('video') ? 'Video' : 'Image'}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -102,62 +113,53 @@ const UploadScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 20,
   },
   fileName: {
     fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   selectButton: {
     backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 30,
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 20,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
   },
-  progressBar: {
-    marginVertical: 20,
-  },
-  progressText: {
-    fontSize: 18,
-    textAlign: 'center',
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
     marginBottom: 20,
   },
-  buttonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  progressBar: {
+    width: '80%',
+    marginRight: 10,
   },
-  controlButton: {
-    padding: 15,
-    borderRadius: 10,
-    width: 120,
-    alignItems: 'center',
+  progressText: {
+    fontSize: 16,
+    color: '#333',
   },
   pauseButton: {
-    backgroundColor: '#ff6347',
-  },
-  resumeButton: {
-    backgroundColor: '#32cd32',
-  },
-  uploadButton: {
     backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 10,
-    width: 180,
-    alignItems: 'center',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 20,
+  },
+  cancelButton: {
+    backgroundColor: '#ff0000',
+    padding: 10,
+    borderRadius: 5,
   },
 });
 
