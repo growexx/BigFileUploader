@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const axiosInstance = axios.create({
   baseURL: 'http://10.10.3.31:3001/api/file-upload',
-
+  // baseURL: 'https://fileupload.growexx.com/dev/api/file-upload',
   timeout: 5000,
   headers: {},
 });
