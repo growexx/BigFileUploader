@@ -5,10 +5,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  ActivityIndicator,
+  AppState
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { BackgroundChunkedUpload, handleUploadWhenAppIsOpened, pauseUpload, resumeUpload } from '../services/uploadService';
+import {
+  BackgroundChunkedUpload,
+  handleUploadWhenAppIsOpened,
+  pauseUpload,
+  resumeUpload
+} from '../services/uploadService';
 import StorageHelper from '../helper/LocalStorage';
 
 const UploadScreen: React.FC = () => {
@@ -18,26 +25,29 @@ const UploadScreen: React.FC = () => {
   const [fileName, setFileName] = useState<string>('');
   const [fileType, setFileType] = useState<string>('');
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
+  const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
+  const [appState, setAppState] = useState(AppState.currentState);
 
-  useEffect(() => {
-    const initializeUpload = async () => {
-      const uploadDetails = await StorageHelper.getItem('uploadDetails');
+  // useEffect(() => {
+  //   const initializeUpload = async () => {
+  //     const uploadDetails = await StorageHelper.getItem('uploadDetails');
 
-      if (uploadDetails) {
-        const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
+  //     if (uploadDetails) {
+  //       const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
+  //       setStatus(status); // Set the status from the storage
 
-        if (status === 'paused' || status === 'uploading') {
-          setFileName(fileName);
-          setFileType('mixed');
-          setUploadId(uploadId);
-          handleUploadWhenAppIsOpened()
-        }
-      }
-    };
+  //       if (status === 'paused' || status === 'uploading') {
+  //         setFileName(fileName);
+  //         setFileType('mixed');
+  //         setUploadId(uploadId);
+  //         handleUploadWhenAppIsOpened();
+  //       }
+  //     }
+  //   };
 
-    initializeUpload();
-  }, []);
+  //   initializeUpload();
+  // }, []);
 
   const selectMedia = async () => {
     try {
@@ -61,17 +71,22 @@ const UploadScreen: React.FC = () => {
   const startUpload = async (fileUri: string, fileName: string) => {
     setUploadId('some-unique-id');
     setUploadCompleted(false);
-    await StorageHelper.setItem('uploadDetails', JSON.stringify({
-      status: 'uploading',
-      fileUri,
-      fileName
-    }));
-    BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
-      setProgress(progress);
-      if (progress === 100) {
-        setUploadCompleted(true);
-      }
-    });
+    setStatus('processing');
+    setTimeout(async () => {
+      setStatus('uploading'); // Set status to 'uploading'
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({
+        status: 'uploading',
+        fileUri,
+        fileName
+      }));
+      BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+        setProgress(progress);
+        if (progress === 100) {
+          setUploadCompleted(true);
+          setStatus('completed');
+        }
+      });
+    }, 2000);
   };
 
   const resetUpload = () => {
@@ -79,8 +94,8 @@ const UploadScreen: React.FC = () => {
     setUploadId(null);
     setFileName('');
     setUploadCompleted(false);
-    StorageHelper.removeItem('uploadDetails');
-    StorageHelper.removeItem('uploadId');
+    setStatus(null);
+    StorageHelper.clearAll();
   };
 
   const togglePauseResume = async () => {
@@ -95,13 +110,33 @@ const UploadScreen: React.FC = () => {
     }
   };
 
+  const handleClearAll = async () => {
+    try {
+      await StorageHelper.clearAll();
+      console.log('All storage data cleared.');
+    } catch (error) {
+      console.error('Error clearing storage:', error);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
+      <TouchableOpacity style={styles.cancelButton} onPress={handleClearAll}>
+        <Text style={styles.buttonText}>CLEAR ALL</Text>
+      </TouchableOpacity>
+
       <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
 
       {fileName && <Text style={styles.fileName}>Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}</Text>}
 
-      {uploadId && (
+      {status === 'processing' && (
+        <View style={styles.processingContainer}>
+          <ActivityIndicator size="large" color="#007bff" />
+          <Text style={styles.processingText}>Processing...</Text>
+        </View>
+      )}
+
+      {status === 'uploading' && (
         <>
           <View style={styles.progressContainer}>
             <Bar
@@ -187,6 +222,14 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
+  },
+  processingContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  processingText: {
+    marginTop: 10,
     fontSize: 16,
   },
 });

@@ -22,14 +22,10 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
     if (!networkInfo.isConnected) {
       throw new Error('No network connection');
     }
-
-
+    StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'processing' }));
 
     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
-
-
-
     const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
 
     NetworkHelper.monitorBandwidthChanges(
@@ -59,6 +55,8 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
         }
       }
     );
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
+    await StorageHelper.getItem('uploadDetails');
 
     let totalProgress = 0;
     for (let i = 0; i < chunks.length; i++) {
@@ -89,10 +87,13 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
         fileName: params.taskData.fileName,
         partNumber: i + 1,
       };
+
       await StorageHelper.setItem('uploadDetails', JSON.stringify(uploadDetails));
       console.log("LocalStorage uploadDetails:", await StorageHelper.getItem('uploadDetails'));
+
       await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
       totalProgress = Math.round(((i + 1) / chunks.length) * 100);
+
       if (progressCallback) {
         progressCallback(totalProgress);
       }
@@ -196,18 +197,18 @@ export const uploadChunkWithRetry = async (
   }
 };
 
-const startUpload = async (options: any) => {
-  console.log("background upload started");
-  console.log(options);
+// const startUpload = async (options: any) => {
+//   console.log("background upload started");
+//   console.log(options);
 
-  await BackgroundActions.start(uploadFileInChunks, options);
-  console.log("background upload ended");
-};
+//   await BackgroundActions.start(uploadFileInChunks, options);
+//   console.log("background upload ended");
+// };
 
-const stopUpload = async () => {
-  await BackgroundActions.stop();
-  console.log('Background upload stopped');
-};
+// const stopUpload = async () => {
+//   await BackgroundActions.stop();
+//   console.log('Background upload stopped');
+// };
 
 export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: string, progressCallback?: (progress: number) => void) => {
   console.log('Background upload started', fileUri);
@@ -248,18 +249,17 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
   }, options.progressCallback);
 };
 
-export const pauseUpload = () => {
-  // isPaused = true;
-  // console.log('Pause requested');
-  // StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
-  StorageHelper.clearAll();
+export const pauseUpload = async () => {
+  isPaused = true;
+  console.log('Pause requested');
+  await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
 
 };
 
-export const resumeUpload = () => {
+export const resumeUpload = async () => {
   isPaused = false;
   console.log('Resume requested');
-  StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
+  await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
 };
 
 export const handleUploadWhenAppIsOpened = async () => {
