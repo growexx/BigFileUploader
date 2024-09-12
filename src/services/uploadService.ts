@@ -23,16 +23,7 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       throw new Error('No network connection');
     }
 
-    const uploadDetails = {
-      status: 'uploading',
-      fileUri,
-      fileType,
-      bucketName,
-      fileName,
-    };
 
-    await StorageHelper.setItem('uploadDetails', JSON.stringify(uploadDetails));
-    console.log("LocalStorage uploadDetails:", await StorageHelper.getItem('uploadDetails'));
 
     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
@@ -40,10 +31,6 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
 
 
     const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
-    await StorageHelper.setItem('uploadId', uploadId);
-    console.log('Upload ID saved to local storage:', uploadId);
-    await StorageHelper.setItem('signedUrls', JSON.stringify(signedUrls));
-    console.log('Signed URLs saved to local storage:', signedUrls);
 
     NetworkHelper.monitorBandwidthChanges(
       () => {
@@ -94,6 +81,18 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       const chunk = chunks[i];
       const signedUrl = signedUrls[i];
       console.log('Uploading chunk:', chunk.size);
+      let uploadDetails = {
+        status: 'uploading',
+        signedUrl: signedUrl,
+        uploadId: uploadId,
+        fileUri: params.taskData.fileUri,
+        fileType: params.taskData.fileType,
+        bucketName: params.taskData.bucketName,
+        fileName: params.taskData.fileName,
+        partNumber: i + 1,
+      };
+      await StorageHelper.setItem('uploadDetails', JSON.stringify(uploadDetails));
+      console.log("LocalStorage uploadDetails:", await StorageHelper.getItem('uploadDetails'));
       await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
       totalProgress = Math.round(((i + 1) / chunks.length) * 100);
       if (progressCallback) {
@@ -150,6 +149,7 @@ export const uploadChunkWithRetry = async (
     console.log("i am here");
     console.log('signedUrl:' + signedUrl + ' ---partNumber:' + partNumber + ' ---totalParts:' + totalParts + ' ---chunk:' + chunk);
     console.log('chunk size', chunk.size);
+
     const arrayBuffer = await blobToArrayBuffer(chunk);
     const uint8Array = new Uint8Array(arrayBuffer);
     const response = await axios.put(signedUrl, uint8Array, {
@@ -201,9 +201,6 @@ export const uploadChunkWithRetry = async (
 const startUpload = async (options: any) => {
   console.log("background upload started");
   console.log(options);
-
-  await StorageHelper.setItem('uploadStatus', 'started');
-  console.log('Upload status set to "started"');
 
   await BackgroundActions.start(uploadFileInChunks, options);
   console.log("background upload ended");
