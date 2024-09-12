@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
-import { BackgroundChunkedUpload, pauseUpload, resumeUpload } from '../services/uploadService';
+import { BackgroundChunkedUpload, handleUploadWhenAppIsOpened, pauseUpload, resumeUpload } from '../services/uploadService';
 import StorageHelper from '../helper/LocalStorage';
 
 const UploadScreen: React.FC = () => {
@@ -23,6 +23,7 @@ const UploadScreen: React.FC = () => {
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
+      console.log("KKKKKKK " + uploadDetails);
 
       if (uploadDetails) {
         const { status, fileUri, fileName } = JSON.parse(uploadDetails);
@@ -34,12 +35,7 @@ const UploadScreen: React.FC = () => {
           console.log("ZZZZZZZZZZZZZZZZZZZZ " + await StorageHelper.getItem('uploadId'));
 
           setUploadId(await StorageHelper.getItem('uploadId'));
-          // BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
-          //   setProgress(progress);
-          //   if (progress === 100) {
-          //     setUploadCompleted(true);
-          //   }
-          // });
+          handleUploadWhenAppIsOpened()
         }
       }
     };

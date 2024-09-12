@@ -269,22 +269,23 @@ export const resumeUpload = () => {
 export const handleUploadWhenAppIsOpened = async () => {
 
   const uploadDetails = await StorageHelper.getItem('uploadDetails');
-  console.log('uploadDetails:', uploadDetails);
+  console.log('uploadDetails:   ', uploadDetails);
   if (uploadDetails) {
-    const { status,bucketName, uploadId, fileUri, fileName, signedUrls, currentPartNumber } = JSON.parse(uploadDetails);
+    const { status, bucketName, uploadId, fileUri, fileName, signedUrls, partNumber } = JSON.parse(uploadDetails);
     console.log('status:', status);
     if (status === 'uploading') {
-     //called createChunks
-     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
-     for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      const signedUrl = signedUrls[i];
-      console.log('Uploading chunk:', chunk.size);
-      if (currentPartNumber >= i + 1) {
-      await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
+      //called createChunks
+      const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
+      if (partNumbers.length == partNumber) return;
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const signedUrl = signedUrls[i];
+        console.log('Uploading chunk:', chunk.size);
+        if (partNumber >= i + 1) {
+          await uploadChunkWithRetry(signedUrl, chunk, 'application/octet-stream', i + 1, chunks.length);
+        }
       }
-     }
-     //call completeUpload
+      //call completeUpload
       const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
       console.log('upload', JSON.stringify(upload));
     }
