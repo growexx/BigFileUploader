@@ -73,7 +73,7 @@ const UploadScreen: React.FC = () => {
     setUploadCompleted(false);
     setStatus('processing');
     setTimeout(async () => {
-      setStatus('uploading'); // Set status to 'uploading'
+      setStatus('uploading');
       await StorageHelper.setItem('uploadDetails', JSON.stringify({
         status: 'uploading',
         fileUri,
@@ -121,7 +121,7 @@ const UploadScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
-      <TouchableOpacity style={styles.cancelButton} onPress={handleClearAll}>
+      <TouchableOpacity style={styles.clearAllButton} onPress={handleClearAll}>
         <Text style={styles.buttonText}>CLEAR ALL</Text>
       </TouchableOpacity>
 
@@ -136,7 +136,7 @@ const UploadScreen: React.FC = () => {
         </View>
       )}
 
-      {status === 'uploading' && (
+      {(status === 'uploading' || status === 'completed') && (
         <>
           <View style={styles.progressContainer}>
             <Bar
@@ -150,7 +150,7 @@ const UploadScreen: React.FC = () => {
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
 
-          {!uploadCompleted && (
+          {progress < 100 && !uploadCompleted && (
             <TouchableOpacity
               style={styles.pauseButton}
               onPress={togglePauseResume}
@@ -159,9 +159,9 @@ const UploadScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {uploadCompleted && (
+          {progress === 100 && (
             <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
-              <Text style={styles.buttonText}>Cancel</Text>
+              <Text style={styles.buttonText}>Start New Upload</Text>
             </TouchableOpacity>
           )}
         </>
@@ -211,14 +211,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   cancelButton: {
-    backgroundColor: '#dc3545',
+    backgroundColor: '#28a745',
     padding: 10,
     borderRadius: 5,
+    marginBottom: 20,
   },
   selectButton: {
     backgroundColor: '#28a745',
     padding: 10,
     borderRadius: 5,
+  },
+  clearAllButton: {
+    backgroundColor: '#6c757d',
+    padding: 10,
+    borderRadius: 5,
+    position: 'absolute',
+    top: 20,
+    right: 20,
   },
   buttonText: {
     color: '#fff',
