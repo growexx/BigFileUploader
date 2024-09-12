@@ -73,8 +73,13 @@ const uploadFileInChunks = async (params: any) => {
     }
     console.log('Upload completed successfully');
     console.log('uploadParts',uploadParts);
-    await completeUpload(uploadId,bucketName, fileName, uploadParts);
-
+  const upload =   await completeUpload(uploadId,bucketName, fileName, uploadParts);
+    console.log('upload',JSON.stringify(upload));
+    Toast.show({
+      type: 'success',
+      text1: 'Upload Complete',
+      text2: 'File uploaded successfully.',
+    });
   } catch (err) {
     console.error('Upload failed:', err);
     Toast.show({
@@ -84,7 +89,16 @@ const uploadFileInChunks = async (params: any) => {
     });
   }
 };
-
+const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result as ArrayBuffer);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(blob);
+  });
+};
 // Function to upload a chunk with retry logic
 export const uploadChunkWithRetry = async (
   signedUrl: string,
@@ -95,10 +109,13 @@ export const uploadChunkWithRetry = async (
   retries = 0,
 ) => {
   try {
+   
     console.log("i am here");
     console.log('signedUrl:' + signedUrl + ' ---partNumber:' + partNumber + ' ---totalParts:' + totalParts + ' ---chunk:' + chunk);
-
-    const response = await axios.put(signedUrl, chunk, {
+    console.log('chunk size', chunk.size);
+    const arrayBuffer = await blobToArrayBuffer(chunk);
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const response = await axios.put(signedUrl, uint8Array, {
       headers: {
         'Content-Type': 'application/octet-stream',
       },
