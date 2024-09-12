@@ -37,10 +37,11 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
 
-    await StorageHelper.setItem('uploadId', uploadId);
-    console.log('Upload ID saved to local storage:', uploadId);
+
 
     const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
+    await StorageHelper.setItem('uploadId', uploadId);
+    console.log('Upload ID saved to local storage:', uploadId);
     await StorageHelper.setItem('signedUrls', JSON.stringify(signedUrls));
     console.log('Signed URLs saved to local storage:', signedUrls);
 
@@ -256,8 +257,9 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
 export const pauseUpload = () => {
   isPaused = true;
   console.log('Pause requested');
-  // Optionally save to local storage
   StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
+  // StorageHelper.clearAll();
+
 };
 
 export const resumeUpload = () => {

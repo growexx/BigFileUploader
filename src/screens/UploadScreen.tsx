@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -10,6 +9,7 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
 import { BackgroundChunkedUpload, pauseUpload, resumeUpload } from '../services/uploadService';
+import StorageHelper from '../helper/LocalStorage';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -21,12 +21,31 @@ const UploadScreen: React.FC = () => {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    return () => {
-      if (uploadId) {
-        // Call stopUpload or similar cleanup function if needed
+    const initializeUpload = async () => {
+      const uploadDetails = await StorageHelper.getItem('uploadDetails');
+
+      if (uploadDetails) {
+        const { status, fileUri, fileName } = JSON.parse(uploadDetails);
+        console.log("JJJJJJJJJJJJJJJJJJJ " + status + " " + fileName + " " + fileUri);
+
+        if (status === 'paused' || status === 'uploading') {
+          setFileName(fileName);
+          setFileType('mixed');
+          console.log("ZZZZZZZZZZZZZZZZZZZZ " + await StorageHelper.getItem('uploadId'));
+
+          setUploadId(await StorageHelper.getItem('uploadId'));
+          // BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+          //   setProgress(progress);
+          //   if (progress === 100) {
+          //     setUploadCompleted(true);
+          //   }
+          // });
+        }
       }
     };
-  }, [uploadId]);
+
+    initializeUpload();
+  }, []);
 
   const selectMedia = async () => {
     try {
@@ -48,8 +67,13 @@ const UploadScreen: React.FC = () => {
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
-    setUploadId('some-unique-id'); // Set a unique ID for the upload if needed
+    setUploadId('some-unique-id'); // Generate a unique ID for the upload
     setUploadCompleted(false); // Reset upload completed state
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({
+      status: 'uploading',
+      fileUri,
+      fileName
+    }));
     BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
       setProgress(progress);
       if (progress === 100) {
@@ -63,14 +87,19 @@ const UploadScreen: React.FC = () => {
     setUploadId(null);
     setFileName('');
     setUploadCompleted(false);
+    StorageHelper.removeItem('uploadDetails'); // Clear upload details from storage
+    StorageHelper.removeItem('uploadId'); // Clear upload ID from storage
   };
 
-  const togglePauseResume = () => {
-    setPaused(!paused);
+  const togglePauseResume = async () => {
     if (paused) {
-      resumeUpload();
+      await resumeUpload();
+      setPaused(false);
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
     } else {
-      pauseUpload();
+      await pauseUpload();
+      setPaused(true);
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
     }
   };
 
@@ -171,5 +200,3 @@ const styles = StyleSheet.create({
 });
 
 export default UploadScreen;
-
-
