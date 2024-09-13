@@ -61,9 +61,11 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
 
     let totalProgress = 0;
     for (let i = 0; i < chunks.length; i++) {
-      const bandwidth = await NetworkHelper.getBandwidthEstimate();
-      console.log(`Current bandwidth: ${bandwidth} Mbps`);
-      if (bandwidth !== 'unknown' && bandwidth < LOW_BANDWIDTH_THRESHOLD) {
+      const bandwidth = await NetworkHelper.getNetworkInfo();
+      console.log(`Current bandwidth: ${bandwidth.downlinkMax} Mbps`);
+      if (bandwidth.downlinkMax !== 'unknown' && bandwidth.downlinkMax < LOW_BANDWIDTH_THRESHOLD && !bandwidth.isConnected) {
+        console.error("Phone is not connected");
+
         Toast.show({
           type: 'error',
           text1: 'Warning',

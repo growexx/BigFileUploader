@@ -5,6 +5,8 @@ const LOW_BANDWIDTH_THRESHOLD = 1; // 1 Mbps
 class NetworkHelper {
   static async getNetworkInfo() {
     const state = await NetInfo.fetch();
+    console.log("Network info: " + JSON.stringify(state));
+
     return {
       isConnected: state.isConnected,
       type: state.type,
