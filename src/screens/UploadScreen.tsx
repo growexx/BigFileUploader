@@ -17,6 +17,7 @@ import {
   resumeUpload
 } from '../services/uploadService';
 import StorageHelper from '../helper/LocalStorage';
+import { EventRegister } from 'react-native-event-listeners';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -47,6 +48,16 @@ const UploadScreen: React.FC = () => {
     };
 
     initializeUpload();
+
+    // Set up event listener for progress updates
+    const progressListener = EventRegister.addEventListener('uploadProgress', (data: number) => {
+      setProgress(data);
+    });
+
+    // Clean up the event listener when the component unmounts
+    return () => {
+      EventRegister.removeEventListener(progressListener as never);
+    };
   }, []);
 
   const selectMedia = async () => {
@@ -136,6 +147,7 @@ const UploadScreen: React.FC = () => {
 
       {(status === 'uploading' || status === 'completed') && (
         <>
+          <Text style={styles.processingText && { paddingBottom: 18 }}>Uploading{paused ? ' paused' : '....'}</Text>
           <View style={styles.progressContainer}>
             <Bar
               progress={progress / 100}
@@ -167,7 +179,7 @@ const UploadScreen: React.FC = () => {
 
       {!uploadId && (
         <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-          <Text style={styles.buttonText}>Select {fileType.includes('video') ? 'Video' : 'Image'}</Text>
+          <Text style={styles.buttonText}>Select File</Text>
         </TouchableOpacity>
       )}
     </View>

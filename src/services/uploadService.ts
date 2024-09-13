@@ -5,6 +5,7 @@ import BackgroundActions from 'react-native-background-actions';
 import { completeUpload, getPresignedUrls, initiateUpload } from './axiosConfig';
 import axios, { CancelTokenSource } from 'axios';
 import StorageHelper from '../helper/LocalStorage';
+import { EventRegister } from 'react-native-event-listeners';
 
 const CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_RETRIES = 3;
@@ -251,10 +252,11 @@ export const handleUploadWhenAppIsOpened = async () => {
     const { status, bucketName, uploadId, fileUri, fileName, partNumber, signedUrl, totalParts } = JSON.parse(uploadDetails);
     console.log("uploadDetails : " + bucketName);
 
-    if (status === 'uploading') {
+    if (status === 'uploading' || status === 'paused') {
       const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
-      // if (partNumber == partNumbers.length) return;
-      for (let i = partNumber - 1; i <= chunks.length; i++) {
+      for (let i = partNumber - 1; i < chunks.length; i++) {
+        let totalProgress = (i / totalParts) * 100;
+        updateProgress(totalProgress);
         isPaused = status === 'paused';
         console.log("Paused? :" + isPaused + " " + status);
 
@@ -263,11 +265,16 @@ export const handleUploadWhenAppIsOpened = async () => {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         try {
-          await uploadChunkWithRetry(signedUrl[i], chunks[i], 'application/octet-stream', i + 1, totalParts, (progress) => {
+          await uploadChunkWithRetry(signedUrl[i], chunks[i], 'application/octet-stream', i + 1, totalParts, (chunkProgress) => {
+            const chunkContribution = (1 / totalParts) * (chunkProgress / 100);
+            totalProgress = ((i / totalParts) * 100) + (chunkContribution * 100);
+            updateProgress(totalProgress);
+
             StorageHelper.setItem('uploadDetails', JSON.stringify({
               ...JSON.parse(uploadDetails),
               partNumber: i + 1,
-              chunkProgress: progress
+              chunkProgress: chunkProgress,
+              totalProgress: totalProgress
             }));
           });
         } catch (error) {
@@ -280,10 +287,18 @@ export const handleUploadWhenAppIsOpened = async () => {
       if (status !== 'paused') {
         const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
         console.log('Upload completed after app refresh:', JSON.stringify(upload));
+        updateProgress(100);
         await StorageHelper.clearAll();
       }
     }
   }
+};
+
+const updateProgress = (progress: number) => {
+  const roundedProgress = Math.round(progress * 100) / 100;
+  console.log(`Upload progress: ${roundedProgress}%`);
+
+  EventRegister.emit('uploadProgress', roundedProgress);
 };
 
 // Helper function (unchanged)
