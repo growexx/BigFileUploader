@@ -29,25 +29,25 @@ const UploadScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const [appState, setAppState] = useState(AppState.currentState);
 
-  // useEffect(() => {
-  //   const initializeUpload = async () => {
-  //     const uploadDetails = await StorageHelper.getItem('uploadDetails');
+  useEffect(() => {
+    const initializeUpload = async () => {
+      const uploadDetails = await StorageHelper.getItem('uploadDetails');
 
-  //     if (uploadDetails) {
-  //       const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
-  //       setStatus(status); // Set the status from the storage
+      if (uploadDetails) {
+        const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
+        setStatus(status); // Set the status from the storage
 
-  //       if (status === 'paused' || status === 'uploading') {
-  //         setFileName(fileName);
-  //         setFileType('mixed');
-  //         setUploadId(uploadId);
-  //         handleUploadWhenAppIsOpened();
-  //       }
-  //     }
-  //   };
+        if (status === 'uploading') {
+          setFileName(fileName);
+          setFileType('mixed');
+          setUploadId(uploadId);
+          handleUploadWhenAppIsOpened();
+        }
+      }
+    };
 
-  //   initializeUpload();
-  // }, []);
+    initializeUpload();
+  }, []);
 
   const selectMedia = async () => {
     try {
@@ -102,11 +102,9 @@ const UploadScreen: React.FC = () => {
     if (paused) {
       await resumeUpload();
       setPaused(false);
-      await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
     } else {
       await pauseUpload();
       setPaused(true);
-      await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
     }
   };
 

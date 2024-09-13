@@ -74,7 +74,9 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
         console.log('Upload paused, waiting to resume...');
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-
+      if (currentUploadCancelSource === null) {
+        currentUploadCancelSource = axios.CancelToken.source();
+      }
       const chunk = chunks[i];
       const signedUrl = signedUrls[i];
       let uploadDetails = {
@@ -123,8 +125,11 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       text2: 'File uploaded successfully.',
     });
 
-    // await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'completed' }));
-    // console.log("LocalStorage uploadDetails (completed):", await StorageHelper.getItem('uploadDetails'));
+    const storedUploadDetails = await StorageHelper.getItem('uploadDetails');
+    if (storedUploadDetails) {
+      const uploadDetails = JSON.parse(storedUploadDetails);
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'completed' }));
+    }
   } catch (err) {
     console.error('Upload failed:', err);
     Toast.show({
@@ -133,8 +138,11 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       text2: 'An error occurred during the upload.',
     });
 
-    // await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'failed' }));
-    // console.log("LocalStorage uploadDetails (failed):", await StorageHelper.getItem('uploadDetails'));
+    const storedUploadDetails = await StorageHelper.getItem('uploadDetails');
+    if (storedUploadDetails) {
+      const uploadDetails = JSON.parse(storedUploadDetails);
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'failed' }));
+    }
   }
 };
 
@@ -214,28 +222,48 @@ export const pauseUpload = async () => {
   console.log('Pause requested');
   if (currentUploadCancelSource) {
     currentUploadCancelSource.cancel('Upload paused');
+    currentUploadCancelSource = null; // Reset the cancel source
+
   }
-  await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'paused' }));
+  const storedUploadDetails = await StorageHelper.getItem('uploadDetails');
+
+  if (storedUploadDetails) {
+    const uploadDetails = JSON.parse(storedUploadDetails);
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'paused' }));
+  }
 };
 
 export const resumeUpload = async () => {
   isPaused = false;
   console.log('Resume requested');
-  await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
-  // The upload will automatically resume in the main loop
+
+  const storedUploadDetails = await StorageHelper.getItem('uploadDetails');
+  if (storedUploadDetails) {
+    const uploadDetails = JSON.parse(storedUploadDetails);
+    await StorageHelper.setItem('uploadDetails', JSON.stringify({ ...uploadDetails, status: 'uploading' }));
+  }
+  handleUploadWhenAppIsOpened();
 };
 
 export const handleUploadWhenAppIsOpened = async () => {
   const uploadDetails = await StorageHelper.getItem('uploadDetails');
   if (uploadDetails) {
     const { status, bucketName, uploadId, fileUri, fileName, partNumber, signedUrl, totalParts } = JSON.parse(uploadDetails);
+    console.log("uploadDetails : " + bucketName);
+
     if (status === 'uploading') {
       const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
-      if (partNumber == partNumbers.length) return;
-      for (let i = partNumber - 1; i < chunks.length; i++) {
+      // if (partNumber == partNumbers.length) return;
+      for (let i = partNumber - 1; i <= chunks.length; i++) {
+        isPaused = status === 'paused';
+        console.log("Paused? :" + isPaused + " " + status);
+
+        while (isPaused) {
+          console.log('Upload paused, waiting to resume...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
         try {
           await uploadChunkWithRetry(signedUrl[i], chunks[i], 'application/octet-stream', i + 1, totalParts, (progress) => {
-            // Update progress in storage
             StorageHelper.setItem('uploadDetails', JSON.stringify({
               ...JSON.parse(uploadDetails),
               partNumber: i + 1,
@@ -252,7 +280,7 @@ export const handleUploadWhenAppIsOpened = async () => {
       if (status !== 'paused') {
         const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
         console.log('Upload completed after app refresh:', JSON.stringify(upload));
-        await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'completed' }));
+        await StorageHelper.clearAll();
       }
     }
   }
