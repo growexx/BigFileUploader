@@ -56,7 +56,7 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
         }
       }
     );
-    await StorageHelper.setItem('uploadDetails', JSON.stringify({ status: 'uploading' }));
+
 
     let totalProgress = 0;
     for (let i = 0; i < chunks.length; i++) {
@@ -229,8 +229,9 @@ export const handleUploadWhenAppIsOpened = async () => {
   const uploadDetails = await StorageHelper.getItem('uploadDetails');
   if (uploadDetails) {
     const { status, bucketName, uploadId, fileUri, fileName, partNumber, signedUrl, totalParts } = JSON.parse(uploadDetails);
-    if (status === 'uploading' || status === 'paused') {
+    if (status === 'uploading') {
       const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
+      if (partNumber == partNumbers.length) return;
       for (let i = partNumber - 1; i < chunks.length; i++) {
         try {
           await uploadChunkWithRetry(signedUrl[i], chunks[i], 'application/octet-stream', i + 1, totalParts, (progress) => {
