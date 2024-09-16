@@ -213,6 +213,12 @@ const uploadChunkWithRetry = async (
       console.error(
         `Failed to upload chunk ${partNumber} after ${MAX_RETRIES} attempts.`,
       );
+      Toast.show({
+        type: 'error',
+        text1: 'Upload Failed',
+        text2: `Failed to upload chunk ${partNumber} after retries. Upload paused.`
+      });
+      isPaused = true; // Set pause action
       throw error;
     }
   } finally {
