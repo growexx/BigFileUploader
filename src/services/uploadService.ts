@@ -188,6 +188,13 @@ const uploadChunkWithRetry = async (
         );
         console.log(`Chunk ${partNumber} upload progress: ${progress}%`);
         progressCallback(progress);
+        
+        // Save ETag only when the chunk's upload progress is 100%
+        if (progress === 100) {
+          uploadParts.push({ ETag: response.headers.etag, PartNumber: partNumber });
+          console.log(`Chunk ${partNumber} uploaded successfully with ETag: ${response.headers.etag}`);
+        }
+
         BackgroundActions.updateNotification({
           progressBar: {
             max: 100,
@@ -200,7 +207,6 @@ const uploadChunkWithRetry = async (
     });
 
     console.log('response.headers.etag', response.headers.etag);
-    uploadParts.push({ ETag: response.headers.etag, PartNumber: partNumber });
     console.log(`Chunk ${partNumber} uploaded successfully`);
   } catch (error) {
     if (axios.isCancel(error)) {
