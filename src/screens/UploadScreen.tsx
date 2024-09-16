@@ -6,7 +6,6 @@ import {
   StyleSheet,
   useColorScheme,
   ActivityIndicator,
-  AppState
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
@@ -14,7 +13,7 @@ import {
   BackgroundChunkedUpload,
   handleUploadWhenAppIsOpened,
   pauseUpload,
-  resumeUpload
+  resumeUpload,
 } from '../services/uploadService';
 import StorageHelper from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
@@ -28,14 +27,13 @@ const UploadScreen: React.FC = () => {
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
-  const [appState, setAppState] = useState(AppState.currentState);
 
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
 
       if (uploadDetails) {
-        const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
+        const { status, fileName, uploadId } = JSON.parse(uploadDetails);
         setStatus(status); // Set the status from the storage
 
         if (status === 'uploading') {
@@ -88,7 +86,7 @@ const UploadScreen: React.FC = () => {
       await StorageHelper.setItem('uploadDetails', JSON.stringify({
         status: 'uploading',
         fileUri,
-        fileName
+        fileName,
       }));
       BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
         setProgress(progress);
@@ -244,7 +242,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     position: 'absolute',
-    top: 20,
+    top: 50,
     right: 20,
   },
   buttonText: {

@@ -1,6 +1,10 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export const STORAGE_KEY_STATUS = 'status';
+export const STORAGE_KEY_UPLOAD_DETAILS = 'uploadDetails';
+export const STORAGE_KEY_etags = 'uploaded_etags';
+
 class StorageHelper {
   static async setItem(key: string, value: string): Promise<void> {
     try {
