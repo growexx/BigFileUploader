@@ -18,6 +18,7 @@ import {
 } from '../services/uploadService';
 import StorageHelper from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
+import Toast from 'react-native-toast-message';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -122,6 +123,10 @@ const UploadScreen: React.FC = () => {
   const handleClearAll = async () => {
     try {
       await StorageHelper.clearAll();
+      Toast.show({
+        type: 'success',
+        text1: 'All storage data cleared.',
+      });
       console.log('All storage data cleared.');
     } catch (error) {
       console.error('Error clearing storage:', error);

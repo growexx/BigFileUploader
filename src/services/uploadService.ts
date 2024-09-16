@@ -29,6 +29,10 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
     const { chunks, partNumbers } = await createFileChunks(fileUri, CHUNK_SIZE) as { chunks: Blob[]; partNumbers: number[]; };
     const uploadId = await initiateUpload(bucketName, fileName);
     const signedUrls = await getPresignedUrls(bucketName, uploadId, fileName, partNumbers);
+    Toast.show({
+      text1: 'Warning',
+      text2: 'Your internet speed is low. Upload may take longer than expected.',
+    });
 
     NetworkHelper.monitorBandwidthChanges(
       () => {
@@ -239,6 +243,9 @@ const uploadChunkWithRetry = async (
 
 export const pauseUpload = async () => {
   isPaused = true;
+  Toast.show({
+    type: 'Uploading Paused',
+  });
   console.log('Pause requested');
   if (currentUploadCancelSource) {
     currentUploadCancelSource.cancel('Upload paused');
@@ -255,6 +262,10 @@ export const pauseUpload = async () => {
 
 export const resumeUpload = async () => {
   isPaused = false;
+  Toast.show({
+    type: 'Uploading Resumed',
+    text1: '',
+  });
   console.log('Resume requested');
 
   const storedUploadDetails = await StorageHelper.getItem('uploadDetails');
@@ -362,8 +373,18 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
   };
   console.log('Starting background upload with options:', options); // Log options before starting
   try {
+    // await BackgroundActions.start(async (taskData) => {
+    //   await uploadFileInChunks(taskData, options.progressCallback);
+    // }, options);
     await BackgroundActions.start(async (taskData) => {
       await uploadFileInChunks(taskData, options.progressCallback);
+      await BackgroundActions.updateNotification({
+        taskTitle: 'Upload Complete',
+        taskDesc: 'Your file has been uploaded successfully.',
+        progressBar: { max: 100, value: 100 },
+      });
+      // Stop the background task
+      await BackgroundActions.stop();
     }, options);
   } catch (error) {
     console.error('Error starting background upload:', error);
