@@ -118,10 +118,20 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       }
     }
 
+    // Store uploadId and ETag only if upload is completed
+    if (totalProgress === 100) {
+      const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
+      console.log('upload', JSON.stringify(upload));
+      // Store uploadId and ETag here
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({
+        ...JSON.parse(await StorageHelper.getItem('uploadDetails')),
+        uploadId: uploadId,
+        eTag: uploadParts.map(part => part.ETag) // Store all ETags
+      }));
+    }
+
     console.log('Upload completed successfully');
     console.log('uploadParts', uploadParts);
-    const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
-    console.log('upload', JSON.stringify(upload));
     Toast.show({
       type: 'success',
       text1: 'Upload Complete',
