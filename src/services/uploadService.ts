@@ -50,9 +50,10 @@ const uploadFileInChunks = async (
     if (!networkInfo.isConnected) {
       throw new Error('No network connection');
     }
-    const {chunks, partNumbers} = (await createFileChunks(
+    const {chunks, partNumbers, uploadedChunkSize} = (await createFileChunks(
       fileUri
-    )) as {chunks: Blob[]; partNumbers: number[]};
+    )) as {chunks: Blob[]; partNumbers: number[], uploadedChunkSize: number[]};
+    uploadedChunk = uploadedChunkSize;
    const uploadId = await initiateUploadProcess(fileName, bucketName);
    console.log('uploadId',uploadId);
   const signedUrls = await getPresignedUrls(
