@@ -130,8 +130,12 @@ const UploadScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
-      <TouchableOpacity style={styles.clearAllButton} onPress={handleClearAll}>
-        <Text style={styles.buttonText}>CLEAR ALL</Text>
+      <TouchableOpacity style={styles.clearAllButton} onPress={async () => {
+        await handleClearAll();
+        // Refresh the UI by resetting relevant states
+        resetUpload(); // Call resetUpload to refresh the UI
+      }}>
+        <Text style={styles.buttonText}>CLEAR DATA</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
@@ -145,9 +149,13 @@ const UploadScreen: React.FC = () => {
         </View>
       )}
 
-      {(status === 'uploading' || status === 'completed') && (
+      {(status === 'uploading' || status === 'completed' ) && (
         <>
-          <Text style={styles.processingText && { paddingBottom: 18 }}>Uploading{paused ? ' paused' : '....'}</Text>
+          {progress < 100 && (
+            <Text style={styles.processingText && { paddingBottom: 18 }}>
+              Uploading{paused ? ' paused' : '....'}
+            </Text>
+          )}
           <View style={styles.progressContainer}>
             <Bar
               progress={progress / 100}
@@ -159,15 +167,6 @@ const UploadScreen: React.FC = () => {
             />
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
-
-          {progress < 100 && !uploadCompleted && (
-            <TouchableOpacity
-              style={styles.pauseButton}
-              onPress={togglePauseResume}
-            >
-              <Text style={styles.buttonText}>{paused ? 'Resume' : 'Pause'}</Text>
-            </TouchableOpacity>
-          )}
 
           {progress === 100 && (
             <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
