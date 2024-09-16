@@ -2,6 +2,7 @@
 import Toast from 'react-native-toast-message';
 import DeviceInfo from 'react-native-device-info';
 import NetworkHelper from './helper/NetworkHelper';
+import StorageHelper, { STORAGE_KEY_CHUNKS } from './helper/LocalStorage';
 // Define the structure of the response from getDeviceMemory function
 interface DeviceMemory {
   totalMemory: number;
@@ -69,13 +70,22 @@ async function getDynamicChunkSize(): Promise<number> {
 
 export const createFileChunks = async (fileUri: string) => {
   try {
+   let uploadedChunkSize: any = 0; // await StorageHelper.getItemChunk(STORAGE_KEY_CHUNKS);
+   const value = await StorageHelper.getItem(STORAGE_KEY_CHUNKS);
+   if (value !== null) {
+    uploadedChunkSize = Number(value);
+  }
+   console.log('uploadedChunkSize : ' + uploadedChunkSize);
     const dynamicChunkSize = await getDynamicChunkSize();
     const partNumbers = [];
     const file = await fetch(fileUri);
     const blob = await file.blob();
     const mimeType = blob.type || 'application/octet-stream';
     const chunks = [];
-    const totalChunks = Math.ceil(blob.size / dynamicChunkSize);
+// Calculate the remaining size
+    const remainingSize = blob.size - (uploadedChunkSize || 0);
+    console.log('remainingSize : ' + remainingSize);
+    const totalChunks = Math.ceil(remainingSize / dynamicChunkSize);
     for (let i = 0; i < totalChunks; i++) {
       const start = i * dynamicChunkSize;
       const end = Math.min(start + dynamicChunkSize, blob.size);
