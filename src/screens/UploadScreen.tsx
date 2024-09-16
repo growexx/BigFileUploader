@@ -168,6 +168,15 @@ const UploadScreen: React.FC = () => {
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
 
+          {progress < 100 && !uploadCompleted && (
+            <TouchableOpacity
+              style={styles.pauseButton}
+              onPress={togglePauseResume}
+            >
+              <Text style={styles.buttonText}>{paused ? 'Resume' : 'Pause'}</Text>
+            </TouchableOpacity>
+          )}
+
           {progress === 100 && (
             <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
               <Text style={styles.buttonText}>Start New Upload</Text>
