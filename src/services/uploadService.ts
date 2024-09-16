@@ -143,7 +143,8 @@ const uploadChunkWithRetry = async (
         fileProgress = progress;
       },
     });
-
+    // Save ETag only when the chunk's upload progress is 100%
+    // if (progress === 100) {
     console.log('response.headers.etag', response.headers.etag);
     console.log(`Chunk ${partNumber} uploaded successfully`);
     // Save ETag only when the chunk's upload progress is 100%
@@ -176,6 +177,11 @@ const uploadChunkWithRetry = async (
       console.error(
         `Failed to upload chunk ${partNumber} after ${MAX_RETRIES} attempts.`,
       );
+      Toast.show({
+        type: 'error',
+        text1: 'Upload Failed',
+        text2: `Failed to upload chunk ${partNumber} after retries. Upload paused.`,
+      });
       isPaused = true; // Set pause action
       throw error;
     }
@@ -186,7 +192,9 @@ const uploadChunkWithRetry = async (
 
 export const pauseUpload = async () => {
   isPaused = true;
-
+  Toast.show({
+    type: 'Uploading Paused',
+  });
   console.log('Pause requested');
   if (currentUploadCancelSource) {
     currentUploadCancelSource.cancel('Upload paused');
@@ -197,6 +205,10 @@ export const pauseUpload = async () => {
 
 export const resumeUpload = async () => {
   isPaused = false;
+  Toast.show({
+    type: 'Uploading Resumed',
+    text1: '',
+  });
   console.log('Resume requested');
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
   handleUploadWhenAppIsOpened();
