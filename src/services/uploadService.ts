@@ -118,10 +118,20 @@ const uploadFileInChunks = async (params: any, progressCallback?: (progress: num
       }
     }
 
+    // Store uploadId and ETag only if upload is completed
+    if (totalProgress === 100) {
+      const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
+      console.log('upload', JSON.stringify(upload));
+      // Store uploadId and ETag here
+      await StorageHelper.setItem('uploadDetails', JSON.stringify({
+        ...JSON.parse(await StorageHelper.getItem('uploadDetails')),
+        uploadId: uploadId,
+        eTag: uploadParts.map(part => part.ETag) // Store all ETags
+      }));
+    }
+
     console.log('Upload completed successfully');
     console.log('uploadParts', uploadParts);
-    const upload = await completeUpload(uploadId, bucketName, fileName, uploadParts);
-    console.log('upload', JSON.stringify(upload));
     Toast.show({
       type: 'success',
       text1: 'Upload Complete',
@@ -188,10 +198,11 @@ const uploadChunkWithRetry = async (
         });
       },
     });
-
+    // Save ETag only when the chunk's upload progress is 100%
+    // if (progress === 100) {
     console.log('response.headers.etag', response.headers.etag);
     uploadParts.push({ ETag: response.headers.etag, PartNumber: partNumber });
-    console.log(`Chunk ${partNumber} uploaded successfully`);
+    console.log(`Chunk ${partNumber} uploaded successfully with ETag: ${response.headers.etag}`);
   } catch (error) {
     if (axios.isCancel(error)) {
       console.log('Request canceled:', error.message);
@@ -213,6 +224,12 @@ const uploadChunkWithRetry = async (
       console.error(
         `Failed to upload chunk ${partNumber} after ${MAX_RETRIES} attempts.`,
       );
+      Toast.show({
+        type: 'error',
+        text1: 'Upload Failed',
+        text2: `Failed to upload chunk ${partNumber} after retries. Upload paused.`
+      });
+      isPaused = true; // Set pause action
       throw error;
     }
   } finally {
@@ -315,6 +332,7 @@ const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
   });
 };
 
+
 export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: string, progressCallback?: (progress: number) => void) => {
   console.log('Background upload started', fileUri);
   const options = {
@@ -342,14 +360,21 @@ export const BackgroundChunkedUpload = async (fileUri: string | null, fileName: 
       }
     }
   };
-
-  uploadFileInChunks({
-    delay: 1000,
-    taskData: {
-      fileUri: fileUri,
-      bucketName: 'api-bucketfileupload.growexx.com',
-      fileType: 'mixed',
-      fileName: fileName
-    },
-  }, options.progressCallback);
+  console.log('Starting background upload with options:', options); // Log options before starting
+  try {
+    await BackgroundActions.start(async (taskData) => {
+      await uploadFileInChunks(taskData, options.progressCallback);
+    }, options);
+  } catch (error) {
+    console.error('Error starting background upload:', error);
+  }
+  // uploadFileInChunks({
+  //   delay: 1000,
+  //   taskData: {
+  //     fileUri: fileUri,
+  //     bucketName: 'api-bucketfileupload.growexx.com',
+  //     fileType: 'mixed',
+  //     fileName: fileName
+  //   },
+  // }, options.progressCallback);
 };

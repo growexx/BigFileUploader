@@ -7,7 +7,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import {BackgroundChunkedUpload, uploadFileInChunks } from './src/services/uploadService';
+import {BackgroundChunkedUpload } from './src/services/uploadService';
 
 const App = () => {
   const [fileUri, setFileUri] = useState<string | null>(null);
@@ -19,7 +19,8 @@ const App = () => {
       const file = await pickDocument();
       setFileUri(file?.uri ?? '');
       console.log('File picked:', file);
-      BackgroundChunkedUpload(file?.uri ?? '');
+      // BackgroundChunkedUpload(file?.uri ?? '');
+      BackgroundChunkedUpload(file?.uri ?? '', file?.name ?? '');
 
     } catch (error) {
       console.error('Error during file upload:', error);

@@ -130,8 +130,12 @@ const UploadScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' }]}>
-      <TouchableOpacity style={styles.clearAllButton} onPress={handleClearAll}>
-        <Text style={styles.buttonText}>CLEAR ALL</Text>
+      <TouchableOpacity style={styles.clearAllButton} onPress={async () => {
+        await handleClearAll();
+        // Refresh the UI by resetting relevant states
+        resetUpload(); // Call resetUpload to refresh the UI
+      }}>
+        <Text style={styles.buttonText}>CLEAR DATA</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Upload {fileType.includes('video') ? 'Video' : 'Image'}</Text>
