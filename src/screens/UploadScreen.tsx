@@ -6,7 +6,6 @@ import {
   StyleSheet,
   useColorScheme,
   ActivityIndicator,
-  AppState
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
@@ -14,10 +13,11 @@ import {
   BackgroundChunkedUpload,
   handleUploadWhenAppIsOpened,
   pauseUpload,
-  resumeUpload
+  resumeUpload,
 } from '../services/uploadService';
-import StorageHelper from '../helper/LocalStorage';
+import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
+import Toast from 'react-native-toast-message';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -28,21 +28,27 @@ const UploadScreen: React.FC = () => {
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
-  const [appState, setAppState] = useState(AppState.currentState);
 
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
-
+      console.log('uploadDetails : ' + uploadDetails);
+      const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
-        const { status, fileUri, fileName, uploadId } = JSON.parse(uploadDetails);
+        const {fileName, uploadId } = JSON.parse(uploadDetails);
         setStatus(status); // Set the status from the storage
 
         if (status === 'uploading') {
           setFileName(fileName);
           setFileType('mixed');
           setUploadId(uploadId);
-          handleUploadWhenAppIsOpened();
+         resumeUpload(false, (progress: number) => {
+          setProgress(progress);
+          if (progress === 100) {
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
+        });
         }
       }
     };
@@ -88,7 +94,7 @@ const UploadScreen: React.FC = () => {
       await StorageHelper.setItem('uploadDetails', JSON.stringify({
         status: 'uploading',
         fileUri,
-        fileName
+        fileName,
       }));
       BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
         setProgress(progress);
@@ -111,7 +117,15 @@ const UploadScreen: React.FC = () => {
 
   const togglePauseResume = async () => {
     if (paused) {
-      await resumeUpload();
+      await resumeUpload(paused,
+        (progress: number) => {
+          setProgress(progress);
+          if (progress === 100) {
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
+        }
+      );
       setPaused(false);
     } else {
       await pauseUpload();
@@ -122,6 +136,10 @@ const UploadScreen: React.FC = () => {
   const handleClearAll = async () => {
     try {
       await StorageHelper.clearAll();
+      Toast.show({
+        type: 'success',
+        text1: 'All storage data cleared.',
+      });
       console.log('All storage data cleared.');
     } catch (error) {
       console.error('Error clearing storage:', error);
@@ -244,7 +262,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     position: 'absolute',
-    top: 20,
+    top: 50,
     right: 20,
   },
   buttonText: {

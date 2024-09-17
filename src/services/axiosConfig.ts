@@ -4,7 +4,7 @@ import axios from 'axios';
 const axiosInstance = axios.create({
   // baseURL: 'http://10.10.3.31:3001/api/file-upload',
   baseURL: 'https://fileupload.growexx.com/api/file-upload',
-  timeout: 5000,
+  timeout: 50000,
   headers: {},
 });
 
@@ -17,15 +17,10 @@ export const initiateUpload = async (bucketName: string, fileName: string) => {
     'bucketName': bucketName,
     'key': fileName,
   });
-
-  console.log('response:', JSON.stringify(response.data));
-
   return response.data.UploadId;
 };
 
 export const getPresignedUrls = async (bucketName: string, uploadId: string, key: string, parts: number[]) => {
-  console.log('getPresignedUrls ' + uploadId + ' :' + key + ':' + parts);
-
   const response = await axiosInstance.post('/generate-presigned-urls', {
     'bucketName': bucketName,
     'uploadId': uploadId,
@@ -45,6 +40,7 @@ export const uploadPart = async (fileChunk: Blob, signedUrl: string) => {
 };
 
 export const completeUpload = async (uploadId: string, bucketName: string, key: string, parts: { ETag: string; PartNumber: number }[]) => {
+  console.log('completeUpload');
   const response = await axiosInstance.post('/complete-upload', {
     'bucketName': bucketName,
     'uploadId': uploadId,
