@@ -95,7 +95,7 @@ export const createFileChunks = async (fileUri: string) => {
     }
     console.log('totalChunks : ' + totalChunks);
 
-    return { chunks, partNumbers , uploadedChunkSize};
+    return { chunks, partNumbers , uploadedChunkSize, blobSize: blob.size};
   } catch (err) {
     console.error('Upload failed:', err);
     Toast.show({

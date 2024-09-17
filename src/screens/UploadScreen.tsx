@@ -15,7 +15,7 @@ import {
   pauseUpload,
   resumeUpload,
 } from '../services/uploadService';
-import StorageHelper from '../helper/LocalStorage';
+import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
 import Toast from 'react-native-toast-message';
 
@@ -32,16 +32,23 @@ const UploadScreen: React.FC = () => {
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
-
+      console.log('uploadDetails : ' + uploadDetails);
+      const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
-        const { status, fileName, uploadId } = JSON.parse(uploadDetails);
+        const {fileName, uploadId } = JSON.parse(uploadDetails);
         setStatus(status); // Set the status from the storage
 
         if (status === 'uploading') {
           setFileName(fileName);
           setFileType('mixed');
           setUploadId(uploadId);
-          handleUploadWhenAppIsOpened();
+         resumeUpload(false, (progress: number) => {
+          setProgress(progress);
+          if (progress === 100) {
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
+        });
         }
       }
     };
@@ -110,7 +117,15 @@ const UploadScreen: React.FC = () => {
 
   const togglePauseResume = async () => {
     if (paused) {
-      await resumeUpload();
+      await resumeUpload(paused,
+        (progress: number) => {
+          setProgress(progress);
+          if (progress === 100) {
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
+        }
+      );
       setPaused(false);
     } else {
       await pauseUpload();
