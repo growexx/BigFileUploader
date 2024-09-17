@@ -25,7 +25,7 @@ class NetworkHelper {
 static async  measureNetworkBandwidth(): Promise<number | null> {
   try {
     const startTime = Date.now();
-    const response = await fetch('https://www.google.com/'); // Replace with a small file URL
+    const response = await fetch('https://speed.hetzner.de/100MB.bin');
     const endTime = Date.now();
 
     const fileSizeInBytes = parseInt(response.headers.get('content-length') || '0', 10);
