@@ -2,8 +2,8 @@
 import axios from 'axios';
 
 const axiosInstance = axios.create({
-  // baseURL: 'http://10.10.3.31:3001/api/file-upload',
-  baseURL: 'https://fileupload.growexx.com/api/file-upload',
+  baseURL: 'http://10.10.3.31:3001/api/file-upload',
+  // baseURL: 'https://fileupload.growexx.com/api/file-upload',
   timeout: 50000,
   headers: {},
 });
@@ -12,6 +12,7 @@ export default axiosInstance;
 
 export const initiateUpload = async (bucketName: string, fileName: string) => {
   console.log(bucketName + ' && ' + fileName);
+  console.log('initiateUpload');
 
   const response = await axiosInstance.post('/initiate-upload', {
     'bucketName': bucketName,
@@ -40,7 +41,7 @@ export const uploadPart = async (fileChunk: Blob, signedUrl: string) => {
 };
 
 export const completeUpload = async (uploadId: string, bucketName: string, key: string, parts: { ETag: string; PartNumber: number }[]) => {
-  console.log('completeUpload');
+  console.log('completeUpload', parts);
   const response = await axiosInstance.post('/complete-upload', {
     'bucketName': bucketName,
     'uploadId': uploadId,

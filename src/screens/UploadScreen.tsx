@@ -10,10 +10,9 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Bar } from 'react-native-progress';
 import {
-  BackgroundChunkedUpload,
-  handleUploadWhenAppIsOpened,
   pauseUpload,
   resumeUpload,
+  startUploadFile,
 } from '../services/uploadService';
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
@@ -96,7 +95,7 @@ const UploadScreen: React.FC = () => {
         fileUri,
         fileName,
       }));
-      BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+      startUploadFile(fileUri, fileName, (progress: number) => {
         setProgress(progress);
         if (progress === 100) {
           setUploadCompleted(true);

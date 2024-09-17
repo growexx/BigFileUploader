@@ -17,28 +17,27 @@ let currentUploadCancelSource: CancelTokenSource | null = null;
 let uploadedChunk: any = 0;
 let isPaused = false;
 
-
 // Initiate upload and get presigned URLs once
 const initiateUploadProcess = async (fileName: string, bucketName: string) => {
-  let uploadId: string = '';
+  let previuseUploadId: string = '';
   const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
   if (uploadDetails) {
-    const { previuseUploadId, etags } = JSON.parse(uploadDetails);
+    const { uploadId, etags } = JSON.parse(uploadDetails);
     console.log('etags s',etags);
-    uploadParts = etags;
-    console.log('previuseUploadId',uploadDetails);
-    if (previuseUploadId) {
-      uploadId = previuseUploadId;
+    // uploadParts = etags;
+    console.log('previuseUploadId',uploadId);
+    if (uploadId) {
+      previuseUploadId = uploadId;
     } else {
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
-      uploadId = await initiateUpload(bucketName, fileName);
+      previuseUploadId = await initiateUpload(bucketName, fileName);
     }
   } else {
-    await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
-    uploadId = await initiateUpload(bucketName, fileName);
+    // await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
+    // previuseUploadId = await initiateUpload(bucketName, fileName);
   }
 
- return uploadId;
+ return previuseUploadId;
 };
 
 //First time upload without intruptions
@@ -47,7 +46,8 @@ const uploadFileInChunks = async (
   progressCallback?: (progress: number) => void,
 ) => {
   try {
-    uploadParts = [];
+
+    console.log(' uploadParts.length + 1,', uploadParts.length);
     const {fileUri, bucketName, fileName} = params.taskData;
     console.log('uploadFileInChunks', fileUri);
     const networkInfo = await NetworkHelper.getNetworkInfo();
@@ -63,33 +63,43 @@ const uploadFileInChunks = async (
     uploadedChunk = uploadedChunkSize;
    const uploadId = await initiateUploadProcess(fileName, bucketName);
    console.log('uploadId',uploadId);
-  const signedUrls = await getPresignedUrls(
-      bucketName,
-      uploadId,
-      fileName,
-      partNumbers,
-    );
+
     monitorNetworkChanges(uploadId);
     let totalProgress = 0;
-    for (let i = 0; i < chunks.length; i++) {
-      while (isPaused) {
-        console.log('Upload paused, waiting to resume...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+
+      for (let i = 0; i < chunks.length; i++) {
+        while (isPaused) {
+          console.log('Upload paused, waiting to resume...');
+         await new Promise(resolve => setTimeout(resolve, 1000));
+         return;
+        }
+        let savedSignedUrls = [];
+        // if (lastSignUrl !== '') {
+        //   savedSignedUrls.push(lastSignUrl);
+        //   lastSignUrl = '';
+        // } else{
+        savedSignedUrls = await getPresignedUrls(
+          bucketName,
+          uploadId,
+          fileName,
+          [uploadParts.length + 1],
+        );
+     // }
       if (currentUploadCancelSource === null) {
         currentUploadCancelSource = axios.CancelToken.source();
       }
-
       const chunk = chunks[i];
-      const signedUrl = signedUrls[i];
+      const signedUrl = savedSignedUrls[0];
+      // lastSignUrl = signedUrl;
+      console.log('signedUrl', signedUrl);
       let uploadDetails = {
-        // signedUrl: signedUrls,
+        signedUrl: signedUrl,
         uploadId: uploadId,
         fileUri: params.taskData.fileUri,
         fileType: params.taskData.fileType,
         bucketName: params.taskData.bucketName,
         fileName: params.taskData.fileName,
-        // partNumber: i + 1,
+        partNumber:uploadParts.length + 1 ,
         // totalParts: chunks.length,
         etags: [],
         chunkProgress: 0,
@@ -102,7 +112,7 @@ const uploadFileInChunks = async (
         await uploadChunkWithRetry(
           signedUrl,
           chunk,
-          i + 1,
+          uploadParts.length + 1,
           chunkProgress => {
             uploadDetails.chunkProgress = chunkProgress;
             StorageHelper.setItem(
@@ -112,11 +122,10 @@ const uploadFileInChunks = async (
           },
         );
         totalProgress = Math.round(((i + 1) / chunks.length) * 100);
-
         if (progressCallback) {
           progressCallback(totalProgress);
         }
-        console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
+        // console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
 
     }
     const upload = await completeUpload(
@@ -130,9 +139,6 @@ const uploadFileInChunks = async (
       await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
       await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
-      // Store uploadId and ETag her
-      console.log('Upload completed successfully');
-      console.log('uploadParts', uploadParts);
     }
       // Proceed with the download or upload
       console.log('Starting data transfer...');
@@ -181,28 +187,26 @@ const uploadChunkWithRetry = async (
       },
     });
     uploadedChunk = uploadedChunk + chunk.size;
-    console.log('uploadedChunk', uploadedChunk);
+    console.log('response.headers.etag', response.headers.etag);
     await StorageHelper.setItem(STORAGE_KEY_CHUNKS, uploadedChunk.toString());
     // Save ETag only when the chunk's upload progress is 100%
     // if (progress === 100) {
-    console.log('response.headers.etag', response.headers.etag);
+
     console.log(`Chunk ${partNumber} uploaded successfully`);
+    lastSignUrl = '';
     // Save ETag only when the chunk's upload progress is 100%
     if (fileProgress === 100) {
       uploadParts.push({ETag: response.headers.etag, PartNumber: partNumber});
-      console.log(
-        `Chunk ${partNumber} uploaded successfully with ETag: ${response.headers.etag}`,
-      );
-      const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
-      if (uploadDetails) {
-        const {etags} = JSON.parse(uploadDetails.etags);
-        const updatedEtags = [...etags, response.headers.etag];
-        console.log('updatedEtags', updatedEtags);
-        await StorageHelper.setItem(
-          STORAGE_KEY_UPLOAD_DETAILS,
-          JSON.stringify({etags: updatedEtags}),
-        );
-      }
+      //const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
+      // if (uploadDetails) {
+      //   const {etags} = JSON.parse(uploadDetails.etags);
+      //   const updatedEtags = [...etags, response.headers.etag];
+      //   console.log('updatedEtags', updatedEtags);
+      //   await StorageHelper.setItem(
+      //     STORAGE_KEY_UPLOAD_DETAILS,
+      //     JSON.stringify({etags: updatedEtags}),
+      //   );
+      // }
     }
   } catch (error) {
     if (axios.isCancel(error)) {
@@ -246,11 +250,11 @@ export const pauseUpload = async () => {
   });
   console.log('Pause requested');
   if (currentUploadCancelSource) {
-   // currentUploadCancelSource.cancel('Upload paused');
-    //currentUploadCancelSource = null; // Reset the cancel source
+   currentUploadCancelSource.cancel('Upload paused');
+   currentUploadCancelSource = null; // Reset the cancel source
   }
+ BackgroundActions.stop();
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'paused');
-
 };
 
 
@@ -331,9 +335,10 @@ export const resumeUpload = async (isPausedByUser: boolean, progressCallback?: (
     type: 'info',
     text1: 'Uploading Resumed',
   });
+  // uploadParts = [];
   console.log('Resume requested');
-  if (!isPausedByUser) {
-    const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
+ //if (!isPausedByUser) {
+  const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
   const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
   if (uploadDetails) {
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
@@ -349,10 +354,23 @@ export const resumeUpload = async (isPausedByUser: boolean, progressCallback?: (
     });
   }
 }
-  } else {
-    isPaused = !isPausedByUser;
-  }
-
+  // } else {
+  //   isPaused = !isPausedByUser;
+  // }
+};
+export const startUploadFile = async (
+  fileUri: string | null,
+  fileName: string,
+  progressCallback?: (progress: number) => void,) => {
+  uploadParts = [];
+    BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+      if (progressCallback) {
+        progressCallback(progress);
+      }
+    });
+  // } else {
+  //   isPaused = !isPausedByUser;
+  // }
 };
 const monitorNetworkChanges = (uploadId: string) => {
   console.log('Monitoring network changes');
