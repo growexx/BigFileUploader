@@ -3,7 +3,7 @@ import Toast from 'react-native-toast-message';
 // Limits based on network type
 const NETWORK_LIMITS: { [key: string]: number } = {
   '3g': 10 * 1024 * 1024, // 100MB
-  '4g': 10 * 1024 * 1024, // 300MB
+  '4g': 300 * 1024 * 1024, // 300MB
   '5g': 500 * 1024 * 1024, // 500MB
   'wifi': Number.MAX_SAFE_INTEGER, // Unlimited
 };
@@ -21,7 +21,29 @@ class NetworkHelper {
           : 'unknown',
     };
   }
+// Measure bandwidth by downloading a small file
+static async  measureNetworkBandwidth(): Promise<number | null> {
+  try {
+    const startTime = Date.now();
+    const response = await fetch('https://www.google.com/'); // Replace with a small file URL
+    const endTime = Date.now();
 
+    const fileSizeInBytes = parseInt(response.headers.get('content-length') || '0', 10);
+    const durationInSeconds = (endTime - startTime) / 1000;
+
+    if (durationInSeconds > 0 && fileSizeInBytes > 0) {
+      const bandwidthInBps = fileSizeInBytes / durationInSeconds; // Bandwidth in bytes per second
+      const bandwidthInMbps = (bandwidthInBps * 8) / (1024 * 1024); // Convert to Mbps
+      console.log(`Estimated bandwidth: ${bandwidthInMbps} Mbps`);
+      return bandwidthInMbps;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error measuring network bandwidth:', error);
+    return null;
+  }
+}
   static monitorBandwidthChanges(
     onLowBandwidth: () => void,
     onInternetLost: () => void,
@@ -48,34 +70,41 @@ class NetworkHelper {
 
   static async getNetworkBandwidth() {
     const state = await NetInfo.fetch();
-
     if (state.isConnected) {
       const networkType = state.type; // E.g., "wifi", "cellular"
       console.log('Network type: ' + networkType);
-      // Network speed estimation logic
-      let bandwidthEstimate;
-      switch (networkType) {
-        case 'wifi':
-          bandwidthEstimate = 100 * 1024 * 1024; // Assume 50 Mbps for Wi-Fi
-          break;
-        case 'cellular':
-          // Estimate based on cellular connection type
-          if (state.details.cellularGeneration === '5g') {
-            bandwidthEstimate = 5 * 1024 * 1024; // Assume 10 Mbps for 4G
-          } else if (state.details.cellularGeneration === '4g') {
-            console.log('4g');
-            bandwidthEstimate = 3 * 1024 * 1024; // Assume 10 Mbps for 4G
-          } else if (state.details.cellularGeneration === '3g') {
-            bandwidthEstimate = 1 * 1024 * 1024; // Assume 2 Mbps for 3G
-          } else {
-            bandwidthEstimate = 0.5 * 1024 * 1024; // Assume 0.5 Mbps for lower generation
-          }
-          break;
-        default:
-          bandwidthEstimate = 1 * 1024 * 1024; // Assume 1 Mbps as a fallback
+      if (networkType === 'wifi' || networkType === 'cellular') {
+        // Measure bandwidth if on Wi-Fi or cellular network
+        const bandwidth = await NetworkHelper.measureNetworkBandwidth();
+        return bandwidth;
+      } else {
+        console.log('No active network connection');
+        return null;
       }
-      console.log('Bandwidth estimate: ' + bandwidthEstimate);
-      return bandwidthEstimate; // Bandwidth in bytes per second
+      // Network speed estimation logic
+      // let bandwidthEstimate;
+      // switch (networkType) {
+      //   case 'wifi':
+      //     bandwidthEstimate = 100 * 1024 * 1024; // Assume 50 Mbps for Wi-Fi
+      //     break;
+      //   case 'cellular':
+      //     // Estimate based on cellular connection type
+      //     if (state.details.cellularGeneration === '5g') {
+      //       bandwidthEstimate = 5 * 1024 * 1024; // Assume 10 Mbps for 4G
+      //     } else if (state.details.cellularGeneration === '4g') {
+      //       console.log('4g');
+      //       bandwidthEstimate = 3 * 1024 * 1024; // Assume 10 Mbps for 4G
+      //     } else if (state.details.cellularGeneration === '3g') {
+      //       bandwidthEstimate = 1 * 1024 * 1024; // Assume 2 Mbps for 3G
+      //     } else {
+      //       bandwidthEstimate = 0.5 * 1024 * 1024; // Assume 0.5 Mbps for lower generation
+      //     }
+      //     break;
+      //   default:
+      //     bandwidthEstimate = 1 * 1024 * 1024; // Assume 1 Mbps as a fallback
+      // }
+      // console.log('Bandwidth estimate: ' + bandwidthEstimate);
+      // return bandwidthEstimate; // Bandwidth in bytes per second
     }
 
     return null;

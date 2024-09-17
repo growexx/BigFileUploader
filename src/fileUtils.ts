@@ -44,22 +44,18 @@ async function getDynamicChunkSize(): Promise<number> {
 
   // Adjust based on network bandwidth
   if (bandwidth) {
-     // Further adjust based on network bandwidth
+    if (bandwidth < 5) {
+      console.log('Slow network (3G or lower): using 1MB chunks');
+      chunkSize = 1 * 1024 * 1024; // 1MB for slow networks (< 5Mbps)
+    } else if (bandwidth >= 5 && bandwidth < 20) {
+      console.log('Medium network (4G): using 5MB chunks');
+      chunkSize = Math.min(chunkSize, 5 * 1024 * 1024); // 5MB for medium networks (5-20Mbps)
+    } else if (bandwidth >= 20) {
+      console.log('Fast network (5G or Wi-Fi): using 10MB chunks');
+      chunkSize = Math.min(chunkSize, 10 * 1024 * 1024); // Up to 10MB for fast networks (>= 20Mbps)
+    }
+  }
 
-  if (bandwidth < DEFAULT_CHUNK_SIZE) {
-    console.log('slow network');
-    // Slow network: less than 5MBps, use 1MB chunks
-    chunkSize = 1 * 1024 * 1024;
-  } else if (bandwidth >= DEFAULT_CHUNK_SIZE && bandwidth < 20 * 1024 * 1024) {
-    console.log('medium network');
-    // Medium network: 5MBps to 20MBps, use 5MB chunks
-    chunkSize = Math.min(chunkSize, 5 * 1024 * 1024);
-  } else if (bandwidth >= 20 * 1024 * 1024) {
-    // Fast network: greater than 20MBps, use up to 20MB chunks
-    console.log('fast network');
-    chunkSize = Math.min(chunkSize, 20 * 1024 * 1024);
-  }
-  }
   console.log('chunkSize : ' + chunkSize);
 
   // Limit chunk size to a reasonable range (1MB to 10MB)
@@ -87,11 +83,11 @@ export const createFileChunks = async (fileUri: string) => {
     console.log('remainingSize : ' + remainingSize);
     const totalChunks = Math.ceil(remainingSize / dynamicChunkSize);
     for (let i = 0; i < totalChunks; i++) {
-      const start = i * dynamicChunkSize;
+      const start = i * dynamicChunkSize + uploadedChunkSize;
       const end = Math.min(start + dynamicChunkSize, blob.size);
       const chunk = blob.slice(start, end, mimeType);
       chunks.push(chunk);
-      partNumbers.push(i + 1);
+      partNumbers.push(i + uploadedChunkSize === 0 ? 1 : i + uploadedChunkSize);
     }
     console.log('totalChunks : ' + totalChunks);
 
