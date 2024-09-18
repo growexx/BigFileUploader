@@ -22,15 +22,13 @@ const initiateUploadProcess = async (fileName: string, bucketName: string) => {
   let previuseUploadId: string = '';
   const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
   if (uploadDetails) {
-    const {uploadId, etags} = JSON.parse(uploadDetails);
-    console.log('etags s', etags);
-    const uploadDetailsObj = JSON.parse(uploadDetails as never);
-    const etags1 = uploadDetailsObj.etags || [];
-    uploadParts = etags1;
+  const {uploadId, etags} = JSON.parse(uploadDetails);
+   uploadParts = etags;
     console.log('previuseUploadId', uploadId);
     if (uploadId) {
       previuseUploadId = uploadId;
     } else {
+      uploadParts = [];
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
       previuseUploadId = await initiateUpload(bucketName, fileName);
     }
@@ -56,7 +54,6 @@ const uploadFileInChunks = async (
     }
     const {
       chunks,
-      partNumbers,
       uploadedChunkSize,
       blobSize,
     }: {
@@ -220,7 +217,6 @@ const uploadChunkWithRetry = async (
           ETag: response.headers.etag,
           PartNumber: partNumber,
         });
-        console.log('etagsArray before update  ::::::::::::;; ', etagsArray);
         await StorageHelper.setItem(
           STORAGE_KEY_UPLOAD_DETAILS,
           JSON.stringify({
@@ -289,8 +285,14 @@ const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
   });
 };
 // Function to stop the background upload
-const stopBackgroundUpload = async () => {
+export const stopBackgroundUpload = async () => {
+  isPaused = true;
   await BackgroundActions.stop();
+  if (currentUploadCancelSource) {
+    currentUploadCancelSource.cancel('Upload paused');
+    currentUploadCancelSource = null; // Reset the cancel source
+  }
+  await StorageHelper.setItem(STORAGE_KEY_STATUS, 'cleared');
   console.log('Background upload stopped');
 };
 

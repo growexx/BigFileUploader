@@ -13,6 +13,7 @@ import {
   pauseUpload,
   resumeUpload,
   startUploadFile,
+  stopBackgroundUpload,
 } from '../services/uploadService';
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
@@ -111,6 +112,7 @@ const UploadScreen: React.FC = () => {
     setFileName('');
     setUploadCompleted(false);
     setStatus(null);
+    stopBackgroundUpload();
     StorageHelper.clearAll();
   };
 
