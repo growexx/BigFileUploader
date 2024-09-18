@@ -507,11 +507,11 @@ const monitorNetworkChanges = (uploadId: string) => {
       if (uploadId) {
         console.log('Internet connection regained. Resuming upload...');
         isPaused = false;
-        Toast.show({
-          type: 'success',
-          text1: 'Upload Resumed',
-          text2: 'Internet connection regained. Upload resumed.',
-        });
+        // Toast.show({
+        //   type: 'success',
+        //   text1: 'Upload Resumed',
+        //   text2: 'Internet connection regained. Upload resumed.',
+        // });
       }
     },
   );
