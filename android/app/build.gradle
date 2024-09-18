@@ -118,3 +118,6 @@ dependencies {
         implementation jscFlavor
     }
 }
+// Add this line at the end of the file
+apply plugin: 'com.google.gms.google-services'
+apply plugin: 'com.google.firebase.crashlytics'

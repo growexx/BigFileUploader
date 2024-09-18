@@ -16,7 +16,7 @@ end
 
 target 'BigFileUploader' do
   config = use_native_modules!
-
+  pod 'Firebase/Crashlytics'
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
