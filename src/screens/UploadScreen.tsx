@@ -21,6 +21,7 @@ import {
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import { EventRegister } from 'react-native-event-listeners';
 import Toast from 'react-native-toast-message';
+import { requestNotificationPermission } from '../helper/util';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
@@ -70,7 +71,9 @@ const UploadScreen: React.FC = () => {
   }, []);
 
   const selectLargeFile = async () => {
+    const hasPermission = await requestNotificationPermission();
     try {
+      if (hasPermission) {
       const result = await DocumentPicker.pick({
         type: [DocumentPicker.types.allFiles],
         copyTo: 'documentDirectory', // Ensure it's saved to local storage
@@ -88,7 +91,9 @@ const UploadScreen: React.FC = () => {
       startUpload(result[0]?.uri as string, result[0]?.name as string);
       // Handle large file upload using chunks
       await startUploadInChunks(result[0]?.uri);
-
+    } else {
+      console.log('Notification permission denied');
+    }
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
         console.log('User canceled file picker');

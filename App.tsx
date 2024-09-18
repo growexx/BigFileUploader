@@ -1,66 +1,67 @@
-// App.tsx
-import React, { useState } from 'react';
-import DocumentPicker from 'react-native-document-picker';
-import crashlytics from '@react-native-firebase/crashlytics';
+import React from 'react';
+import { Button, View } from 'react-native';
+import BackgroundService from 'react-native-background-actions';
+import { PermissionsAndroid, Platform } from 'react-native';
 
-import {
-  SafeAreaView,
-  Button,
-  StyleSheet,
-  View,
-} from 'react-native';
-import {BackgroundChunkedUpload } from './src/services/uploadService';
+// Request notification permission for Android 13 and above
+const requestNotificationPermission = async () => {
+  if (Platform.OS === 'android' && Platform.Version >= 33) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  return true;
+};
+
+// Mock sleep function for async delay
+const sleep = (time: number | undefined) => new Promise((resolve) => setTimeout(resolve, time));
+
+// Background task function
+const veryIntensiveTask = async (taskData?: { delay: number } | undefined) => {
+  const { delay } = taskData || { delay: 1000 };
+  for (let i = 0; BackgroundService.isRunning(); i++) {
+    console.log(`Iteration ${i}`);
+    await sleep(delay);
+  }
+};
+
+// Task options
+const options = {
+  taskName: 'ExampleTask',
+  taskTitle: 'Example Background Task',
+  taskDesc: 'Running background task',
+  taskIcon: {
+    name: 'ic_launcher',
+    type: 'mipmap',
+  },
+  color: '#ff0000',
+  linkingURI: 'yourapp://home', // Optional: deep link to open the app
+  parameters: {
+    delay: 1000,
+  },
+};
 
 const App = () => {
-  const [fileUri, setFileUri] = useState<string | null>(null);
-
-
-  const pickAndUploadFile = async () => {
-    try {
-      // Step 1: Pick document
-      const file = await pickDocument();
-      setFileUri(file?.uri ?? '');
-      console.log('File picked:', file);
-      // BackgroundChunkedUpload(file?.uri ?? '');
-      BackgroundChunkedUpload(file?.uri ?? '', file?.name ?? '');
-
-    } catch (error) {
-      console.error('Error during file upload:', error);
+  const startTask = async () => {
+    const hasPermission = await requestNotificationPermission();
+    if (hasPermission) {
+      await BackgroundService.start(veryIntensiveTask, options);
+    } else {
+      console.log('Notification permission denied');
     }
   };
 
-  // Document picker logic
-  const pickDocument = async () => {
-    try {
-      const res = await DocumentPicker.pick({
-        type: [DocumentPicker.types.allFiles],
-      });
-      return res[0]; // Only picking one file for simplicity
-    } catch (err) {
-      if (DocumentPicker.isCancel(err)) {
-        console.log('User canceled the document picker');
-      } else {
-        throw err;
-      }
-    }
+  const stopTask = async () => {
+    await BackgroundService.stop();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View>
-      <Button title="Pick and Upload File" onPress={pickAndUploadFile} />
-        {/* <Button title="Upload File" onPress={handleUpload} disabled={!fileUri} /> */}
-      </View>
-    </SafeAreaView>
+    <View>
+      <Button title="Start Background Task" onPress={startTask} />
+      <Button title="Stop Background Task" onPress={stopTask} />
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
 
 export default App;

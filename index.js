@@ -8,6 +8,7 @@ import '@react-native-firebase/app';
 
 
 
+
 // Wrap Toast with forwardRef
 const ForwardedToast = React.forwardRef((props, ref) => (
   <Toast ref={ref} {...props} />
