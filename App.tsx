@@ -36,7 +36,6 @@ const options = {
     type: 'mipmap',
   },
   color: '#ff0000',
-  linkingURI: 'yourapp://home', // Optional: deep link to open the app
   parameters: {
     delay: 1000,
   },

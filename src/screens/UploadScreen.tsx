@@ -129,7 +129,9 @@ const UploadScreen: React.FC = () => {
     console.log('File upload completed');
   };
   const selectMedia = async () => {
+    const hasPermission = await requestNotificationPermission();
     try {
+      if (hasPermission) {
       const result = await launchImageLibrary({
         mediaType: 'mixed',
         includeBase64: false,
@@ -142,6 +144,9 @@ const UploadScreen: React.FC = () => {
         setFileType(media.type as string);
         startUpload(media.uri as string, media.fileName as string);
       }
+    } else {
+      console.log('Notification permission denied');
+    }
     } catch (err) {
       console.error('Error picking media:', err);
     }
