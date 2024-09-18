@@ -83,9 +83,12 @@ const UploadScreen: React.FC = () => {
       }
 
       console.log('Selected file: ', result[0]?.uri, result[0]?.size, result[0]?.name);
-
+      setFileName(result[0]?.name as string);
+      setFileType(result[0]?.type as string);
+      startUpload(result[0]?.uri as string, result[0]?.name as string);
       // Handle large file upload using chunks
       await startUploadInChunks(result[0]?.uri);
+
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
         console.log('User canceled file picker');

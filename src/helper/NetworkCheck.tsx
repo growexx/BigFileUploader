@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import UploadScreen from '../screens/UploadScreen';
+import crashlytics from '@react-native-firebase/crashlytics';
 
 const NetworkCheck: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
-
+ crashlytics().log('App mounted.');
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
       setIsConnected(state.isConnected || false);

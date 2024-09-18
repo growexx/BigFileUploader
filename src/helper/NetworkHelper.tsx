@@ -124,19 +124,19 @@ static async  measureNetworkBandwidth(): Promise<number | null> {
     });
     return false;
   }
-
+console.log('netInfo.type', netInfo.type);
   // Define the limit based on network type
-  let dataLimit = NETWORK_LIMITS['4g'] || 0; // default to 0 if unsupported network type
+  let dataLimit = NETWORK_LIMITS[netInfo.type] || 0; // default to 0 if unsupported network type
   console.log('Data size: ' + dataSize);
   console.log('Data limit: ' + dataLimit);
-  if (dataSize > dataLimit) {
+  if (dataSize < dataLimit) {
     // If the data size exceeds the limit, prompt to use Wi-Fi
     Toast.show({
       type: 'error',
       text1: 'Network Limitation',
       text2: `The total data size exceeds the limit for ${networkType.toUpperCase()}. Please connect to Wi-Fi.`,
     });
-    return false;
+    return true;
   }
 
   // Proceed with the operation if the validation passes

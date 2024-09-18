@@ -1,6 +1,8 @@
 // App.tsx
 import React, { useState } from 'react';
 import DocumentPicker from 'react-native-document-picker';
+import crashlytics from '@react-native-firebase/crashlytics';
+
 import {
   SafeAreaView,
   Button,
