@@ -2,7 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import Toast from 'react-native-toast-message';
 // Limits based on network type
 const NETWORK_LIMITS: { [key: string]: number } = {
-  '3g': 10 * 1024 * 1024, // 100MB
+  '3g': 100 * 1024 * 1024, // 100MB
   '4g': 300 * 1024 * 1024, // 300MB
   '5g': 500 * 1024 * 1024, // 500MB
   'wifi': Number.MAX_SAFE_INTEGER, // Unlimited

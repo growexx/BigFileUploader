@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import DocumentPicker from 'react-native-document-picker';
+import RNFS from 'react-native-fs';
+
 import {
   View,
   Text,
@@ -66,6 +69,57 @@ const UploadScreen: React.FC = () => {
     };
   }, []);
 
+  const selectLargeFile = async () => {
+    try {
+      const result = await DocumentPicker.pick({
+        type: [DocumentPicker.types.allFiles],
+        copyTo: 'documentDirectory', // Ensure it's saved to local storage
+      });
+
+      // Check if file size is manageable for the current platform
+      if (result[0]?.size && result[0].size > 20 * 1024 * 1024 * 1024) { // Example: 20GB limit
+        console.log('File is too large to handle');
+        return;
+      }
+
+      console.log('Selected file: ', result[0]?.uri, result[0]?.size, result[0]?.name);
+
+      // Handle large file upload using chunks
+      await startUploadInChunks(result[0]?.uri);
+    } catch (err) {
+      if (DocumentPicker.isCancel(err)) {
+        console.log('User canceled file picker');
+      } else {
+        console.error('Error picking document:', err);
+      }
+    }
+  };
+  const startUploadInChunks = async (fileUri: string) => {
+    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
+    const fileStat = await RNFS.stat(fileUri);
+
+    const fileSize = fileStat.size;
+    let start = 0;
+    let end = chunkSize;
+
+    while (start < fileSize) {
+      if (end > fileSize) {
+        end = fileSize;
+      }
+
+      try {
+        console.log(`Uploading chunk from ${start} to ${end}`);
+       // await uploadFileChunk(fileUri, start, end, chunkSize, 'https://your-upload-url.com');
+        start = end;
+        end = start + chunkSize;
+      } catch (err) {
+        console.error('Chunk upload failed:', err);
+        break;
+      }
+    }
+
+    console.log('File upload completed');
+  };
   const selectMedia = async () => {
     try {
       const result = await launchImageLibrary({
@@ -209,6 +263,11 @@ const UploadScreen: React.FC = () => {
           <Text style={styles.buttonText}>Select File</Text>
         </TouchableOpacity>
       )}
+      {!uploadId && (
+        <TouchableOpacity style={[styles.selectButton, {margin: 10}]} onPress={selectLargeFile}>
+          <Text style={styles.buttonText}>File from Document Picker</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -257,6 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#28a745',
     padding: 10,
     borderRadius: 5,
+    letterSpacing: 1,
   },
   clearAllButton: {
     backgroundColor: '#6c757d',
