@@ -93,9 +93,8 @@ const uploadFileInChunks = async (
 
     while (start < fileSize) {
       if (isPaused) {
-        console.log('Upload paused, waiting to resume...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return;
+      console.log('Upload paused, waiting to resume...');
+       return;
       }
       if (end > fileSize) {
         end = fileSize;
@@ -162,31 +161,36 @@ const uploadFileInChunks = async (
       }
 
     }
-    const upload = await completeUpload(
-      uploadIds,
-      bucketName,
-      fileName,
-      uploadParts,
-    );
-    if (upload) {
-      uploadInProgress = false;
-      console.log('upload', JSON.stringify(upload));
-      await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
-      await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
-      await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
+    if (!isPaused) {
+      const upload = await completeUpload(
+        uploadIds,
+        bucketName,
+        fileName,
+        uploadParts,
+      );
+      if (upload) {
+        uploadInProgress = false;
+        console.log('upload', JSON.stringify(upload));
+        await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
+        await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
+        await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
+      }
+      if (progressCallback) {
+        progressCallback(100);
+      }
     }
-    if (progressCallback) {
-      progressCallback(100);
-    }
+
     // Proceed with the download or upload
     console.log('Starting data transfer...');
     clearCacheAfterUpload(fileUri);
   } catch (err) {
-    console.error('Upload failed:', err);
+    console.log('Upload failed:', err);
+    if ((err as Error)?.message !== 'No network connection') {
     //await StorageHelper.setItem(STORAGE_KEY_STATUS, 'failed');
     await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
     await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
     await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
+    }
   }
 };
 const cleanUpOldCache = async () => {
@@ -450,7 +454,7 @@ export const startUploadFile = async (
   //   isPaused = !isPausedByUser;
   // }
 };
-type NetworkStatusCallback = (isNetworkConnected: int, uploadProcessInprogress: boolean) => void;
+type NetworkStatusCallback = (isNetworkConnected: number, uploadProcessInprogress: boolean) => void;
 
 export const monitorNetworkChanges = (onNetworkStatusChange: NetworkStatusCallback) => {
   console.log('Monitoring network changes',  uploadInProgress);
@@ -472,8 +476,8 @@ export const monitorNetworkChanges = (onNetworkStatusChange: NetworkStatusCallba
         console.log('Internet connection lost. Pausing upload...');
         Toast.show({
           type: 'error',
-          text1: 'Upload Paused',
-          text2: 'Internet connection lost. Upload paused.',
+          text1: 'No Internet Connection',
+          text2: 'Internet connection lost. please check your network connection.',
         });
         onNetworkStatusChange(isNetworkConnected, uploadInProgress);
     },

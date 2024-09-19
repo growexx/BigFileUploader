@@ -1,7 +1,6 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
-
 import {
   View,
   Text,
@@ -11,8 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import {launchImageLibrary} from 'react-native-image-picker';
-import {Bar} from 'react-native-progress';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { Bar } from 'react-native-progress';
 import {
   monitorNetworkChanges,
   pauseUpload,
@@ -20,13 +19,14 @@ import {
   startUploadFile,
   stopBackgroundUpload,
 } from '../services/uploadService';
-import StorageHelper, {STORAGE_KEY_STATUS} from '../helper/LocalStorage';
+import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
-import {requestNotificationPermission} from '../helper/util';
-import {deleteCachedFiles} from '../helper/FileUtils';
-import {requestPermissions} from '../helper/permission';
-import { int } from 'aws-sdk/clients/datapipeline';
+import { requestNotificationPermission } from '../helper/util';
+import { deleteCachedFiles } from '../helper/FileUtils';
+import { requestPermissions } from '../helper/permission';
+
 const MAX_FILE_SIZE_MB = 500;
+
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(1);
   const [uploadId, setUploadId] = useState<string | null>(null);
@@ -36,10 +36,11 @@ const UploadScreen: React.FC = () => {
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
-  const [isConnected, setIsConnected] = useState<int | null>(null); // Track internet status
+  const [isConnected, setIsConnected] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleNetworkStatusChange = async (internetStatus: int, uploadInProgress: boolean) => {
+    const handleNetworkStatusChange = async (internetStatus: number, uploadInProgress: boolean) => {
       setIsConnected(internetStatus);
       if (internetStatus === 0 && uploadInProgress) {
         await pauseUpload();
@@ -59,7 +60,6 @@ const UploadScreen: React.FC = () => {
     };
     monitorNetworkChanges(handleNetworkStatusChange);
 
-    // Optional: Clean up if needed
     return () => {
       // Logic to stop monitoring network changes if applicable
     };
@@ -69,8 +69,8 @@ const UploadScreen: React.FC = () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
       const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
-        const {fileName, uploadId} = JSON.parse(uploadDetails);
-        setStatus(status); // Set the status from the storage
+        const { fileName, uploadId } = JSON.parse(uploadDetails);
+        setStatus(status);
         if (status === 'uploading') {
           setFileName(fileName);
           setFileType('mixed');
@@ -86,8 +86,7 @@ const UploadScreen: React.FC = () => {
       }
     };
     initializeUpload();
-    // Clean up the event listener when the component unmounts
-    return () => {};
+    return () => { };
   }, []);
 
   const selectLargeFile = async () => {
@@ -100,10 +99,9 @@ const UploadScreen: React.FC = () => {
           type: [DocumentPicker.types.video],
         });
 
-        // Check if file size is manageable for the current platform
         if (result[0]?.size && result[0].size > 20 * 1024 * 1024 * 1024) {
-          // Example: 20GB limit
           console.log('File is too large to handle');
+          setIsSelecting(false);
           return;
         }
         console.log(
@@ -115,8 +113,6 @@ const UploadScreen: React.FC = () => {
         setFileName(result[0]?.name as string);
         setFileType(result[0]?.type as string);
         startUpload(result[0]?.uri as string, result[0]?.name as string);
-        // Handle large file upload using chunks
-        //  await startUploadInChunks(result[0]?.uri);
       } else {
         console.log('Notification permission denied');
       }
@@ -127,9 +123,12 @@ const UploadScreen: React.FC = () => {
         console.error('Error picking document:', err);
       }
     }
+    setIsSelecting(false);
   };
 
   const selectMedia = async () => {
+    if (isConnected === 0) {return;} // Disable if offline
+    setIsSelecting(true);
     const hasPermission = await requestNotificationPermission();
     try {
       if (hasPermission) {
@@ -151,7 +150,6 @@ const UploadScreen: React.FC = () => {
                 [{ text: 'OK' }]
               );
             } else {
-              // Proceed with file (file.uri)
               console.log('Selected file URI: ', file.uri);
               setFileName(media.fileName as string);
               setFileType(media.type as string);
@@ -165,6 +163,7 @@ const UploadScreen: React.FC = () => {
     } catch (err) {
       console.error('Error picking media:', err);
     }
+    setIsSelecting(false);
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
@@ -192,7 +191,7 @@ const UploadScreen: React.FC = () => {
   };
 
   const resetUpload = async () => {
-    setProgress(0);
+    setProgress(1);
     setUploadId(null);
     setFileName('');
     setUploadCompleted(false);
@@ -239,23 +238,29 @@ const UploadScreen: React.FC = () => {
     <View
       style={[
         styles.container,
-        {backgroundColor: colorScheme === 'dark' ? '#333' : '#fff'},
+        { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' },
       ]}>
       <TouchableOpacity
-        style={styles.clearAllButton}
-        onPress={async () => {
+        style={[
+          styles.clearAllButton,
+          isConnected === 0 ? styles.disabledButton : {},
+        ]} onPress={async () => {
+          if (isConnected === 0) {return;} // Disable if offline
           await handleClearAll();
-          // Refresh the UI by resetting relevant states
-          resetUpload(); // Call resetUpload to refresh the UI
-        }}>
-        <Text style={styles.buttonText}>CLEAR DATA</Text>
+          resetUpload();
+        }}
+        disabled={isConnected === 0}>
+        <Text style={[
+          styles.buttonText,
+          isConnected === 0 ? styles.disabledText : {},
+        ]}>CLEAR DATA</Text>
       </TouchableOpacity>
       <Text style={styles.networkStatus}>
         {isConnected === null
           ? 'Checking network...'
           : isConnected
-          ? 'Connected to the internet'
-          : 'No internet connection'}
+            ? 'Connected to the internet'
+            : 'No internet connection'}
       </Text>
 
       <Text style={styles.title}>
@@ -268,17 +273,19 @@ const UploadScreen: React.FC = () => {
         </Text>
       )}
 
-      {status === 'processing' && (
-        <View style={styles.processingContainer}>
+      {(isSelecting || status === 'processing') && (
+        <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color="#007bff" />
-          <Text style={styles.processingText}>Processing...</Text>
+          <Text style={styles.loaderText}>
+            {isSelecting ? 'Selecting file...' : 'Processing...'}
+          </Text>
         </View>
       )}
 
       {(status === 'uploading' || status === 'completed') && (
         <>
           {progress < 100 && (
-            <Text style={styles.processingText && {paddingBottom: 18}}>
+            <Text style={[styles.processingText && { paddingBottom: 18 }, isConnected === 0 ? styles.disabledText : {}]}>
               Uploading{paused ? ' paused' : '....'}
             </Text>
           )}
@@ -294,35 +301,64 @@ const UploadScreen: React.FC = () => {
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
 
+
           {progress < 100 && !uploadCompleted && (
             <TouchableOpacity
-              style={styles.pauseButton}
-              onPress={togglePauseResume}>
-              <Text style={styles.buttonText}>
+              style={[
+                styles.pauseButton,
+                isConnected === 0 ? styles.disabledButton : {},
+              ]} onPress={togglePauseResume}
+              disabled={isConnected === 0}>
+              <Text style={[
+                styles.buttonText,
+                isConnected === 0 ? styles.disabledText : {},
+              ]}>
                 {paused ? 'Resume' : 'Pause'}
               </Text>
+
             </TouchableOpacity>
           )}
 
           {progress === 100 && (
-            <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
-              <Text style={styles.buttonText}>Start New Upload</Text>
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                isConnected === 0 ? styles.disabledButton : {},
+              ]} onPress={() => resetUpload()}
+              disabled={isConnected === 0}>
+              <Text style={[
+                styles.buttonText,
+                isConnected === 0 ? styles.disabledText : {},
+              ]}>Start New Upload</Text>
             </TouchableOpacity>
           )}
         </>
       )}
 
-      {!uploadId && (
-        <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-          <Text style={styles.buttonText}>Select File</Text>
-        </TouchableOpacity>
-      )}
-      {!uploadId && (
-        <TouchableOpacity
-          style={[styles.selectButton, {margin: 10}]}
-          onPress={selectLargeFile}>
-          <Text style={styles.buttonText}>File from Document Picker</Text>
-        </TouchableOpacity>
+      {!uploadId && !isSelecting && (
+        <>
+          <TouchableOpacity
+            style={[
+              styles.selectButton,
+              isConnected === 0 ? styles.disabledButton : {},
+            ]} onPress={selectMedia}
+            disabled={isConnected === 0}>
+            <Text style={[
+              styles.buttonText,
+              isConnected === 0 ? styles.disabledText : {},
+            ]}>Select File (Up to 500MB)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.selectButton, { marginTop: 25 }, isConnected === 0 ? styles.disabledButton : {}, // Conditional style for disabled state
+            ]}
+            onPress={selectLargeFile}
+            disabled={isConnected === 0}>
+            <Text style={[
+              styles.buttonText,
+              isConnected === 0 ? styles.disabledText : {},
+            ]}>Select File from Documents</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
@@ -334,6 +370,12 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#d3d3d3',
+  },
+  disabledText: {
+    color: '#a9a9a9',
   },
   title: {
     fontSize: 20,
@@ -396,12 +438,24 @@ const styles = StyleSheet.create({
   },
   networkStatus: {
     position: 'absolute',
-    top: 110,
+    top: 200,
     fontSize: 14,
     color: '#fff',
     backgroundColor: '#007bff',
     padding: 10,
     borderRadius: 5,
+  },
+  networkWarning: {
+    color: 'red',
+    marginTop: 20,
+  },
+  loaderContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loaderText: {
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 
