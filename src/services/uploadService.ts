@@ -1,8 +1,10 @@
-import {createFileChunks} from '../fileUtils';
+import {
+  createDynamicChukSize,
+  getUploadedChunks,
+} from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import Toast from 'react-native-toast-message';
 import BackgroundActions from 'react-native-background-actions';
-import BackgroundService from 'react-native-background-actions';
 import {completeUpload, getPresignedUrls, initiateUpload} from './axiosConfig';
 import axios, {CancelTokenSource} from 'axios';
 import StorageHelper, {
@@ -11,6 +13,8 @@ import StorageHelper, {
   STORAGE_KEY_UPLOAD_DETAILS,
 } from '../helper/LocalStorage';
 import RNFS from 'react-native-fs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { int } from 'aws-sdk/clients/datapipeline';
 const MAX_RETRIES = 3;
 
 let uploadParts: {ETag: string; PartNumber: number}[] = [];
@@ -23,8 +27,8 @@ const initiateUploadProcess = async (fileName: string, bucketName: string) => {
   let previuseUploadId: string = '';
   const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
   if (uploadDetails) {
-  const {uploadId, etags} = JSON.parse(uploadDetails);
-   uploadParts = etags;
+    const {uploadId, etags} = JSON.parse(uploadDetails);
+    uploadParts = etags;
     console.log('previuseUploadId', uploadId);
     if (uploadId) {
       previuseUploadId = uploadId;
@@ -42,20 +46,27 @@ const initiateUploadProcess = async (fileName: string, bucketName: string) => {
 };
 // Function to delete a file
 const deleteFile = async (filePath: string) => {
-  try {
-    await RNFS.unlink(filePath);
-    console.log('File deleted:', filePath);
-  } catch (error) {
-    console.error('Failed to delete file:', error);
-  }
+  RNFS.exists(filePath)
+    .then(exists => {
+      if (exists) {
+        return RNFS.unlink(filePath);
+      } else {
+        console.warn('File does not exist:', filePath);
+      }
+    })
+    .then(() => {
+      console.log('File deleted successfully');
+    })
+    .catch(error => {
+      console.error('Failed to delete file:', error);
+    });
 };
 
 // Example usage after uploading
 const clearCacheAfterUpload = async (filePath: string) => {
-  // Perform your upload logic here...
-  await cleanUpOldCache();
   // After the upload is complete, clear the cache
   await deleteFile(filePath);
+  await cleanUpOldCache();
 };
 
 //First time upload without intruptions
@@ -70,142 +81,101 @@ const uploadFileInChunks = async (
     if (!networkInfo.isConnected) {
       throw new Error('No network connection');
     }
-    // const {
-    //   chunks,
-    //   uploadedChunkSize,
-    //   blobSize,
-    // }: {
-    //   chunks: Blob[];
-    //   partNumbers: number[];
-    //   uploadedChunkSize: number[];
-    //   blobSize: number;
-    // } = (await createFileChunks(fileUri)) as unknown as {
-    //   chunks: Blob[];
-    //   partNumbers: number[];
-    //   uploadedChunkSize: number[];
-    //   blobSize: number;
-    // };
 
-    const chunkSize = 5 * 1024 * 1024; // 10MB chunks
     const fileStat = await RNFS.stat(fileUri);
-
     const fileSize = fileStat.size;
-    let start = 0;
-    let end = chunkSize;
+    uploadedChunk = (await getUploadedChunks()) || 0;
+    let start: number = uploadedChunk;
+    let chunkSize = await createDynamicChukSize();
+    let end = start + chunkSize;
 
     while (start < fileSize) {
+      if (isPaused) {
+        console.log('Upload paused, waiting to resume...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
       if (end > fileSize) {
         end = fileSize;
       }
-    const chunk = await RNFS.read(fileUri, end - start, start, 'base64');
-    // NetworkHelper.validateNetworkAndDataSize(chunk.length).then(
-    //   async (isValid: any) => {
-    //     if (isValid) {
-          console.log('chunks size', chunk.length);
-        //  uploadedChunk = uploadedChunkSize;
-          const uploadId = await initiateUploadProcess(fileName, bucketName);
-          monitorNetworkChanges(uploadId);
-          let totalProgress = 0;
-          // for (let i = 0; i < chunks.length; i++) {
-            while (isPaused) {
-              console.log('Upload paused, waiting to resume...');
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              return;
-            }
-            const signedUrls = await getPresignedUrls(
-              bucketName,
-              uploadId,
-              fileName,
-              [uploadParts.length + 1],
-            );
+      const chunk = await RNFS.read(fileUri, end - start, start, 'base64');
+      const uploadId = await initiateUploadProcess(fileName, bucketName);
+      let totalProgress = 0;
+      // for (let i = 0; i < chunks.length; i++) {
+      const signedUrls = await getPresignedUrls(
+        bucketName,
+        uploadId,
+        fileName,
+        [uploadParts.length + 1],
+      );
 
-            if (currentUploadCancelSource === null) {
-              currentUploadCancelSource = axios.CancelToken.source();
-            }
-           // const chunk = chunks[i];
-            const signedUrl = signedUrls[0];
-            const existingUploadDetailsString = await StorageHelper.getItem(
-              STORAGE_KEY_UPLOAD_DETAILS,
-            );
-            const existingUploadDetails = existingUploadDetailsString
-              ? JSON.parse(existingUploadDetailsString)
-              : null;
-            console.log('signedUrl', signedUrl);
-            let uploadDetails = {
-              signedUrl: signedUrl,
-              uploadId: uploadId,
-              fileUri: params.taskData.fileUri,
-              fileType: params.taskData.fileType,
-              bucketName: params.taskData.bucketName,
-              fileName: params.taskData.fileName,
-              partNumber: uploadParts.length + 1,
-              etags: existingUploadDetails?.etags || [],
-              chunkProgress: 0,
-            };
-            await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
-            await StorageHelper.setItem(
-              STORAGE_KEY_UPLOAD_DETAILS,
-              JSON.stringify(uploadDetails),
-            );
-            await uploadChunkWithRetry(
-              signedUrl,
-              chunk,
-              uploadParts.length + 1,
-              chunkProgress => {
-                uploadDetails.chunkProgress = chunkProgress;
-                StorageHelper.setItem(
-                  STORAGE_KEY_UPLOAD_DETAILS,
-                  JSON.stringify(uploadDetails),
-                );
-              },
-            );
-            start = end;
-            end = start + chunkSize;
-            totalProgress = end / fileSize * 100; //Math.round(((i + 1) / chunks.length) * 100);
-            console.log('totalProgress', totalProgress);
-            if (progressCallback) {
-              progressCallback(totalProgress);
-            }
-            // console.log(`Uploaded chunk ${i + 1} of ${chunks.length}`);
-         // }
-          // const upload = await completeUpload(
-          //   uploadId,
-          //   bucketName,
-          //   fileName,
-          //   uploadParts,
-          // );
+      if (currentUploadCancelSource === null) {
+        currentUploadCancelSource = axios.CancelToken.source();
+      }
+      // const chunk = chunks[i];
+      const signedUrl = signedUrls[0];
+      const existingUploadDetailsString = await StorageHelper.getItem(
+        STORAGE_KEY_UPLOAD_DETAILS,
+      );
+      const existingUploadDetails = existingUploadDetailsString
+        ? JSON.parse(existingUploadDetailsString)
+        : null;
+      console.log('signedUrl', signedUrl);
+      let uploadDetails = {
+        signedUrl: signedUrl,
+        uploadId: uploadId,
+        fileUri: params.taskData.fileUri,
+        fileType: params.taskData.fileType,
+        bucketName: params.taskData.bucketName,
+        fileName: params.taskData.fileName,
+        partNumber: uploadParts.length + 1,
+        etags: existingUploadDetails?.etags || [],
+        chunkProgress: 0,
+      };
+      await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
+      await StorageHelper.setItem(
+        STORAGE_KEY_UPLOAD_DETAILS,
+        JSON.stringify(uploadDetails),
+      );
+      await uploadChunkWithRetry(
+        signedUrl,
+        chunk,
+        uploadParts.length + 1,
+        chunkProgress => {
+          uploadDetails.chunkProgress = chunkProgress;
+          StorageHelper.setItem(
+            STORAGE_KEY_UPLOAD_DETAILS,
+            JSON.stringify(uploadDetails),
+          );
+        },
+      );
+      start = end;
+      end = start + chunkSize;
+      totalProgress = (start / fileSize) * 100; //Math.round(((i + 1) / chunks.length) * 100);
+      console.log('totalProgress', totalProgress);
+      if (progressCallback) {
+        progressCallback(totalProgress);
+      }
+    }
+    const upload = await completeUpload(
+      uploadIds,
+      bucketName,
+      fileName,
+      uploadParts,
+    );
 
-          // if (upload) {
-          //   console.log('upload', JSON.stringify(upload));
-          //   await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
-          //   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
-          //   await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
-          // }
-          // // Proceed with the download or upload
-          // console.log('Starting data transfer...');
-      //   } else {
-      //     console.log('Data transfer cancelled due to network limits.');
-      //     throw new Error('Data transfer cancelled due to network limits.');
-      //  // }
-     // },
-   // );
-  }
-  const upload = await completeUpload(
-    uploadIds,
-    bucketName,
-    fileName,
-    uploadParts,
-  );
-
-  if (upload) {
-    console.log('upload', JSON.stringify(upload));
-    await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
-    await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
-    await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
-  }
-  // Proceed with the download or upload
-  console.log('Starting data transfer...');
-  clearCacheAfterUpload(fileUri);
+    if (upload) {
+      console.log('upload', JSON.stringify(upload));
+      await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
+      await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
+      await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
+    }
+    if (progressCallback) {
+      progressCallback(100);
+    }
+    // Proceed with the download or upload
+    console.log('Starting data transfer...');
+    clearCacheAfterUpload(fileUri);
   } catch (err) {
     console.error('Upload failed:', err);
     //await StorageHelper.setItem(STORAGE_KEY_STATUS, 'failed');
@@ -215,19 +185,22 @@ const uploadFileInChunks = async (
   }
 };
 const cleanUpOldCache = async () => {
+  await AsyncStorage.clear();
   const cacheDir = RNFS.CachesDirectoryPath;
   const files = await RNFS.readDir(cacheDir);
-
   for (const file of files) {
-    // Implement your logic to determine if the file is old or unused
-    // Example: Delete files older than 24 hours
-    const stats = await RNFS.stat(file.path);
-    const fileAge = Date.now() - stats.mtimeMs;
-    const maxAge = 1 * 60 * 1000; // 1 Min
+    const fileExists = await RNFS.exists(file.path);
+    if (fileExists) {
+      // Implement your logic to determine if the file is old or unused
+      // Example: Delete files older than 24 hours
+      const stats = await RNFS.stat(file.path);
+      const fileAge = Date.now() - stats.mtime;
+      const maxAge = 1 * 60 * 1000; // 1 Min
 
-    if (fileAge > maxAge) {
-      await RNFS.unlink(file.path);
-      console.log(`Old file deleted: ${file.path}`);
+      if (fileAge > maxAge) {
+        await RNFS.unlink(file.path);
+        console.log(`Old file deleted: ${file.path}`);
+      }
     }
   }
 };
@@ -241,12 +214,15 @@ const uploadChunkWithRetry = async (
   try {
     console.log('in uploadChunkWithRetry');
     var fileProgress = 0;
-    // const arrayBuffer = await blobToArrayBuffer(chunk);
-    // const uint8Array = new Uint8Array(arrayBuffer);
-
+    const byteCharacters = atob(chunk);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArrayChunk = new Uint8Array(byteNumbers);
     currentUploadCancelSource = axios.CancelToken.source();
 
-    const response = await axios.put(signedUrl, chunk, {
+    const response = await axios.put(signedUrl, byteArrayChunk, {
       headers: {
         'Content-Type': 'application/octet-stream',
       },
@@ -263,16 +239,10 @@ const uploadChunkWithRetry = async (
     uploadedChunk = uploadedChunk + chunk.size;
     console.log('response.headers.etag', response.headers.etag);
     await StorageHelper.setItem(STORAGE_KEY_CHUNKS, uploadedChunk.toString());
-    // Save ETag only when the chunk's upload progress is 100%
-    // if (progress === 100) {
-
     console.log(`Chunk ${partNumber} uploaded successfully`);
     // Save ETag only when the chunk's upload progress is 100%
     if (fileProgress === 100) {
       uploadParts.push({ETag: response.headers.etag, PartNumber: partNumber});
-      console.log(
-        `Chunk ${partNumber} uploaded successfully with ETag: ${response.headers.etag}`,
-      );
       const uploadDetails = await StorageHelper.getItem(
         STORAGE_KEY_UPLOAD_DETAILS,
       );
@@ -340,17 +310,6 @@ export const pauseUpload = async () => {
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'paused');
 };
 
-// Helper function (unchanged)
-const blobToArrayBuffer = (blob: Blob): Promise<ArrayBuffer> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve(reader.result as ArrayBuffer);
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(blob);
-  });
-};
 // Function to stop the background upload
 export const stopBackgroundUpload = async () => {
   isPaused = true;
@@ -362,17 +321,7 @@ export const stopBackgroundUpload = async () => {
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'cleared');
   console.log('Background upload stopped');
 };
-// Mock sleep function for async delay
-const sleep = (time: number | undefined) => new Promise((resolve) => setTimeout(resolve, time));
 
-// Background task function
-const veryIntensiveTask = async (taskData?: { delay: number } | undefined) => {
-  const { delay } = taskData || { delay: 1000 };
-  for (let i = 0; BackgroundService.isRunning(); i++) {
-    console.log(`Iteration ${i}`);
-    await sleep(delay);
-  }
-};
 export const BackgroundChunkedUpload = async (
   fileUri: string | null,
   fileName: string,
@@ -447,29 +396,32 @@ export const resumeUpload = async (
   });
   // uploadParts = [];
   console.log('Resume requested');
-  //if (!isPausedByUser) {
-  const uploadDetails = await StorageHelper.getItem(STORAGE_KEY_UPLOAD_DETAILS);
-  const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
-  if (uploadDetails) {
-    await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
-    const {fileUri, fileName} = JSON.parse(uploadDetails);
-    if (status === 'uploading' || status === 'paused') {
-      BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
-        if (progressCallback) {
-          progressCallback(progress);
-        }
-      });
+  if (!isPausedByUser) {
+    const uploadDetails = await StorageHelper.getItem(
+      STORAGE_KEY_UPLOAD_DETAILS,
+    );
+    const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
+    if (uploadDetails) {
+      await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
+      const {fileUri, fileName} = JSON.parse(uploadDetails);
+      if (status === 'uploading' || status === 'paused') {
+        BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
+          if (progressCallback) {
+            progressCallback(progress);
+          }
+        });
+      }
     }
+  } else {
+    isPaused = false;
   }
-  // } else {
-  //   isPaused = !isPausedByUser;
-  // }
 };
 export const startUploadFile = async (
   fileUri: string | null,
   fileName: string,
   progressCallback?: (progress: number) => void,
 ) => {
+  isPaused = false;
   uploadParts = [];
   BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
     if (progressCallback) {
@@ -480,10 +432,14 @@ export const startUploadFile = async (
   //   isPaused = !isPausedByUser;
   // }
 };
-const monitorNetworkChanges = (uploadId: string) => {
+type NetworkStatusCallback = (isNetworkConnected: int) => void;
+
+export const monitorNetworkChanges = (onNetworkStatusChange: NetworkStatusCallback) => {
   console.log('Monitoring network changes');
+  let isNetworkConnected:int = 1; // Default to true
   NetworkHelper.monitorBandwidthChanges(
     () => {
+      isNetworkConnected = 2;
       console.log('Low bandwidth detected');
       Toast.show({
         type: 'error',
@@ -491,9 +447,10 @@ const monitorNetworkChanges = (uploadId: string) => {
         text2:
           'Your internet speed is low. Upload may take longer than expected.',
       });
+      onNetworkStatusChange(isNetworkConnected);
     },
     () => {
-      if (uploadId) {
+     isNetworkConnected = 0; // Default to true
         console.log('Internet connection lost. Pausing upload...');
         isPaused = true;
         Toast.show({
@@ -501,18 +458,18 @@ const monitorNetworkChanges = (uploadId: string) => {
           text1: 'Upload Paused',
           text2: 'Internet connection lost. Upload paused.',
         });
-      }
+        onNetworkStatusChange(isNetworkConnected);
     },
     () => {
-      if (uploadId) {
+        isNetworkConnected = 1;
         console.log('Internet connection regained. Resuming upload...');
-        isPaused = false;
+        onNetworkStatusChange(isNetworkConnected);
+        // isPaused = false;
         // Toast.show({
         //   type: 'success',
         //   text1: 'Upload Resumed',
         //   text2: 'Internet connection regained. Upload resumed.',
         // });
-      }
     },
   );
 };

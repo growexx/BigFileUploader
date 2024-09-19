@@ -81,7 +81,6 @@ export const createFileChunks = async (fileUri: string) => {
     const remainingSize = fileSize - uploadedChunkSize;
     const totalChunks = Math.ceil(remainingSize / dynamicChunkSize);
     const chunks = [];
-
     // Read file in chunks using `RNFS.read`
     for (let i = 0; i < totalChunks; i++) {
       const start = i * dynamicChunkSize + uploadedChunkSize;
@@ -100,5 +99,19 @@ export const createFileChunks = async (fileUri: string) => {
       text1: 'Upload Error',
       text2: 'An error occurred during the upload.',
     });
+  }
+};
+
+export const createDynamicChukSize = async () => {
+  const dynamicChunkSize = await getDynamicChunkSize();
+  return dynamicChunkSize || DEFAULT_CHUNK_SIZE;
+ };
+
+export const getUploadedChunks = async () => {
+  const value = await StorageHelper.getItem(STORAGE_KEY_CHUNKS);
+  if (value !== null) {
+    return Number(value);
+  } else {
+  return  0;
   }
 };

@@ -9,8 +9,10 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.facebook.react.shell.MainReactPackage
 import com.facebook.soloader.SoLoader
-import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseApp
+
 
 class MainApplication : Application(), ReactApplication {
 
@@ -20,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
+              add(FileUtilsPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
@@ -41,5 +44,11 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
+  }
+  protected fun getPackages(): List<ReactPackage> {
+    val packages: MutableList<ReactPackage> = ArrayList()
+    packages.add(MainReactPackage())
+    packages.add(FileUtilsPackage()) // Add your custom package here
+    return packages
   }
 }

@@ -1,10 +1,10 @@
 import React from 'react'; // Add this import
 import {AppRegistry} from 'react-native';
 import {name as appName} from './app.json';
-import NetworkCheck from './src/helper/NetworkCheck';
 import Toast from 'react-native-toast-message';
 import {View, Text} from 'react-native'; // Import View and Text
 import '@react-native-firebase/app';
+import UploadScreen from './src/screens/UploadScreen';
 
 
 
@@ -19,7 +19,7 @@ const App = () => {
   return (
   <View style={{flex: 1}}>
     {/* Remove the unnecessary whitespace */}
-    <NetworkCheck />
+    <UploadScreen />
     <ForwardedToast>
       <Text>Hello</Text>
     </ForwardedToast>
