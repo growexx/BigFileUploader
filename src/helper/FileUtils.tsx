@@ -27,6 +27,6 @@ export const deleteCachedFiles = async (dirPath: string, maxAgeInMs: number) => 
         }
       }
     } catch (error) {
-      console.error('Error deleting old files:', error);
+      console.log('Error deleting old files:', error);
     }
   };

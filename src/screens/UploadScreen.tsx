@@ -39,9 +39,23 @@ const UploadScreen: React.FC = () => {
   const [isConnected, setIsConnected] = useState<int | null>(null); // Track internet status
 
   useEffect(() => {
-    const handleNetworkStatusChange = (internetStatus: int) => {
+    const handleNetworkStatusChange = async (internetStatus: int, uploadInProgress: boolean) => {
       setIsConnected(internetStatus);
-      // You can handle additional logic here based on network status
+      if (internetStatus === 0 && uploadInProgress) {
+        await pauseUpload();
+        setPaused(true);
+      } else {
+        if (uploadInProgress) {
+          await resumeUpload(true, (progress: number) => {
+            setProgress(progress);
+            if (progress === 100) {
+              setUploadCompleted(true);
+              setStatus('completed');
+            }
+          });
+          setPaused(false);
+      }
+    }
     };
     monitorNetworkChanges(handleNetworkStatusChange);
 
@@ -49,11 +63,10 @@ const UploadScreen: React.FC = () => {
     return () => {
       // Logic to stop monitoring network changes if applicable
     };
-  }, []);
+  }, [isConnected]);
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
-      console.log('uploadDetails : ' + uploadDetails);
       const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
         const {fileName, uploadId} = JSON.parse(uploadDetails);
@@ -78,8 +91,9 @@ const UploadScreen: React.FC = () => {
   }, []);
 
   const selectLargeFile = async () => {
-    requestPermissions();
-    const hasPermission = await requestNotificationPermission();
+   requestPermissions();
+  // requestFilePermission();
+   const hasPermission = await requestNotificationPermission();
     try {
       if (hasPermission) {
         const result = await DocumentPicker.pick({
@@ -114,42 +128,7 @@ const UploadScreen: React.FC = () => {
       }
     }
   };
-  // const handleFileUri = async (uri: string) => {
-  //   if (Platform.OS === 'android') {
-  //     const filePath = await getRealFilePath(uri);
-  //     console.log('File Path:', filePath);
-  //     return filePath;
-  //   }
-  //   return uri;
-  // };
-  const startUploadInChunks = async (fileUri: string) => {
-    console.log('Starting upload in chunks', fileUri);
-    //const realFilePath = await handleFileUri(fileUri);
-    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
-    const fileStat = await RNFS.stat(fileUri as string);
 
-    const fileSize = fileStat.size;
-    let start = 0;
-    let end = chunkSize;
-
-    while (start < fileSize) {
-      if (end > fileSize) {
-        end = fileSize;
-      }
-
-      try {
-        console.log(`Uploading chunk from ${start} to ${end}`);
-        // await uploadFileChunk(fileUri, start, end, chunkSize, 'https://your-upload-url.com');
-        start = end;
-        end = start + chunkSize;
-      } catch (err) {
-        console.error('Chunk upload failed:', err);
-        break;
-      }
-    }
-
-    console.log('File upload completed');
-  };
   const selectMedia = async () => {
     const hasPermission = await requestNotificationPermission();
     try {
@@ -164,7 +143,7 @@ const UploadScreen: React.FC = () => {
           if (result.assets && result.assets.length > 0) {
             const media = result.assets[0];
             const file = media;
-            const fileSizeMB = file.fileSize ?? 0 / (1024 * 1024); // Convert bytes to MB
+            const fileSizeMB = file.fileSize ? file.fileSize / (1024 * 1024) : 0; // Convert bytes to MB
             if (fileSizeMB > MAX_FILE_SIZE_MB) {
               Alert.alert(
                 'File Size Limit Exceeded',

@@ -109,9 +109,11 @@ export const createDynamicChukSize = async () => {
 
 export const getUploadedChunks = async () => {
   const value = await StorageHelper.getItem(STORAGE_KEY_CHUNKS);
+  console.log('getUploadedChunks : ' + Number(value));
   if (value !== null) {
     return Number(value);
   } else {
   return  0;
   }
 };
+
