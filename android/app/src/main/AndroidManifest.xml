@@ -33,10 +33,5 @@
         <meta-data
         android:name="com.google.firebase.analytics.APPLICATION_ID"
         android:value="@string/google_app_id" />
-
-        <service
-    android:name=".RNBackgroundActionsTask"
-    android:exported="false"
-    android:foregroundServiceType="location|dataSync|mediaPlayback" />
     </application>
 </manifest>

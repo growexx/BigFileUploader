@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import {
@@ -39,31 +39,44 @@ const UploadScreen: React.FC = () => {
   const [isConnected, setIsConnected] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
-  useEffect(() => {
-    const handleNetworkStatusChange = async (internetStatus: number, uploadInProgress: boolean) => {
-      setIsConnected(internetStatus);
-      if (internetStatus === 0 && uploadInProgress) {
-        await pauseUpload();
-        setPaused(true);
-      } else {
-        if (uploadInProgress) {
-          await resumeUpload(true, (progress: number) => {
-            setProgress(progress);
-            if (progress === 100) {
-              setUploadCompleted(true);
-              setStatus('completed');
-            }
-          });
-          setPaused(false);
-      }
-    }
-    };
-    monitorNetworkChanges(handleNetworkStatusChange);
+  const handleNetworkStatusChange = useCallback(
+    async (internetStatus: number, uploadInProgress: boolean) => {
+      console.log('Network status changed:', internetStatus);
+      console.log('uploadInProgress:', uploadInProgress);
+      console.log('uploadInProgress: paused', paused);
 
+      // Update connection status
+      setIsConnected(internetStatus);
+
+      // Check if the internet is disconnected and upload is in progress
+      if (internetStatus === 0 && uploadInProgress) {
+        if (!paused) {
+          await pauseUpload();
+          setPaused(true);
+        }
+      } else {
+        // // Check if the upload is paused and needs to be resumed
+        // if (paused && uploadInProgress) {
+        //   await resumeUpload(true, (progress: number) => {
+        //     setProgress(progress);
+        //     if (progress === 100) {
+        //       setUploadCompleted(true);
+        //       setStatus('completed');
+        //     }
+        //   });
+        //   setPaused(false);
+        // }
+      }
+    },
+    [paused] // Dependency array
+  );
+  useEffect(() => {
+    monitorNetworkChanges(handleNetworkStatusChange);
     return () => {
-      // Logic to stop monitoring network changes if applicable
+      // Add cleanup logic here if applicable
     };
-  }, [isConnected]);
+  }, [handleNetworkStatusChange]);
+
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');

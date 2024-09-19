@@ -35,11 +35,11 @@ export const requestPermissions = async () => {
         console.log('Permission denied by the user');
       } else if (result === RESULTS.BLOCKED) {
         console.log('Permission blocked, directing user to settings...');
-        openSettings();
+       // openSettings();
       }
     } else if (permissionStatus === RESULTS.BLOCKED) {
       console.log('Permission blocked, directing user to settings...');
-      openSettings();
+    //  openSettings();
     }
   } catch (err) {
     console.error('Error while requesting permission:', err);
