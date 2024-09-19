@@ -24,7 +24,6 @@ import Toast from 'react-native-toast-message';
 import { requestNotificationPermission } from '../helper/util';
 import { deleteCachedFiles } from '../helper/FileUtils';
 import { requestPermissions } from '../helper/permission';
-import { int } from 'aws-sdk/clients/datapipeline';
 
 const MAX_FILE_SIZE_MB = 500;
 
@@ -37,11 +36,11 @@ const UploadScreen: React.FC = () => {
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
-  const [isConnected, setIsConnected] = useState<int | null>(null);
+  const [isConnected, setIsConnected] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleNetworkStatusChange = (internetStatus: int) => {
+    const handleNetworkStatusChange = (internetStatus: number) => {
       setIsConnected(internetStatus);
     };
     monitorNetworkChanges(handleNetworkStatusChange);
@@ -78,6 +77,7 @@ const UploadScreen: React.FC = () => {
   }, []);
 
   const selectLargeFile = async () => {
+    if (isConnected === 0) return; // Disable if offline
     setIsSelecting(true);
     requestPermissions();
     const hasPermission = await requestNotificationPermission();
@@ -115,6 +115,7 @@ const UploadScreen: React.FC = () => {
   };
 
   const selectMedia = async () => {
+    if (isConnected === 0) return; // Disable if offline
     setIsSelecting(true);
     const hasPermission = await requestNotificationPermission();
     try {
@@ -228,12 +229,19 @@ const UploadScreen: React.FC = () => {
         { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' },
       ]}>
       <TouchableOpacity
-        style={styles.clearAllButton}
-        onPress={async () => {
+        style={[
+          styles.clearAllButton,
+          isConnected === 0 ? styles.disabledButton : {},
+        ]} onPress={async () => {
+          if (isConnected === 0) return; // Disable if offline
           await handleClearAll();
           resetUpload();
-        }}>
-        <Text style={styles.buttonText}>CLEAR DATA</Text>
+        }}
+        disabled={isConnected === 0}>
+        <Text style={[
+          styles.buttonText,
+          isConnected === 0 ? styles.disabledText : {}
+        ]}>CLEAR DATA</Text>
       </TouchableOpacity>
       <Text style={styles.networkStatus}>
         {isConnected === null
@@ -265,7 +273,7 @@ const UploadScreen: React.FC = () => {
       {(status === 'uploading' || status === 'completed') && (
         <>
           {progress < 100 && (
-            <Text style={styles.processingText && { paddingBottom: 18 }}>
+            <Text style={[styles.processingText && { paddingBottom: 18 }, isConnected === 0 ? styles.disabledText : {}]}>
               Uploading{paused ? ' paused' : '....'}
             </Text>
           )}
@@ -281,19 +289,35 @@ const UploadScreen: React.FC = () => {
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
 
+
           {progress < 100 && !uploadCompleted && (
             <TouchableOpacity
-              style={styles.pauseButton}
-              onPress={togglePauseResume}>
-              <Text style={styles.buttonText}>
+              style={[
+                styles.pauseButton,
+                isConnected === 0 ? styles.disabledButton : {},
+              ]} onPress={togglePauseResume}
+              disabled={isConnected === 0}>
+              <Text style={[
+                styles.buttonText,
+                isConnected === 0 ? styles.disabledText : {}
+              ]}>
                 {paused ? 'Resume' : 'Pause'}
               </Text>
+
             </TouchableOpacity>
           )}
 
           {progress === 100 && (
-            <TouchableOpacity style={styles.cancelButton} onPress={resetUpload}>
-              <Text style={styles.buttonText}>Start New Upload</Text>
+            <TouchableOpacity
+              style={[
+                styles.cancelButton,
+                isConnected === 0 ? styles.disabledButton : {},
+              ]} onPress={() => resetUpload()}
+              disabled={isConnected === 0}>
+              <Text style={[
+                styles.buttonText,
+                isConnected === 0 ? styles.disabledText : {}
+              ]}>Start New Upload</Text>
             </TouchableOpacity>
           )}
         </>
@@ -301,13 +325,26 @@ const UploadScreen: React.FC = () => {
 
       {!uploadId && !isSelecting && (
         <>
-          <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-            <Text style={styles.buttonText}>Select File (Up to 500MB)</Text>
+          <TouchableOpacity
+            style={[
+              styles.selectButton,
+              isConnected === 0 ? styles.disabledButton : {},
+            ]} onPress={selectMedia}
+            disabled={isConnected === 0}>
+            <Text style={[
+              styles.buttonText,
+              isConnected === 0 ? styles.disabledText : {}
+            ]}>Select File (Up to 500MB)</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.selectButton, { marginTop: 25 }]}
-            onPress={selectLargeFile}>
-            <Text style={styles.buttonText}>Select File from Document Picker</Text>
+            style={[styles.selectButton, { marginTop: 25 }, isConnected === 0 ? styles.disabledButton : {} // Conditional style for disabled state
+            ]}
+            onPress={selectLargeFile}
+            disabled={isConnected === 0}>
+            <Text style={[
+              styles.buttonText,
+              isConnected === 0 ? styles.disabledText : {}
+            ]}>Select File from Document Picker</Text>
           </TouchableOpacity>
         </>
       )}
@@ -321,6 +358,12 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#d3d3d3',
+  },
+  disabledText: {
+    color: '#a9a9a9',
   },
   title: {
     fontSize: 20,
@@ -389,6 +432,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#007bff',
     padding: 10,
     borderRadius: 5,
+  },
+  networkWarning: {
+    color: 'red',
+    marginTop: 20,
   },
   loaderContainer: {
     alignItems: 'center',
