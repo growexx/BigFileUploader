@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 
@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import {launchImageLibrary} from 'react-native-image-picker';
-import {Bar} from 'react-native-progress';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { Bar } from 'react-native-progress';
 import {
   monitorNetworkChanges,
   pauseUpload,
@@ -20,11 +20,11 @@ import {
   startUploadFile,
   stopBackgroundUpload,
 } from '../services/uploadService';
-import StorageHelper, {STORAGE_KEY_STATUS} from '../helper/LocalStorage';
+import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
-import {requestNotificationPermission} from '../helper/util';
-import {deleteCachedFiles} from '../helper/FileUtils';
-import {requestPermissions} from '../helper/permission';
+import { requestNotificationPermission } from '../helper/util';
+import { deleteCachedFiles } from '../helper/FileUtils';
+import { requestPermissions } from '../helper/permission';
 import { int } from 'aws-sdk/clients/datapipeline';
 const MAX_FILE_SIZE_MB = 500;
 const UploadScreen: React.FC = () => {
@@ -56,7 +56,7 @@ const UploadScreen: React.FC = () => {
       console.log('uploadDetails : ' + uploadDetails);
       const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
-        const {fileName, uploadId} = JSON.parse(uploadDetails);
+        const { fileName, uploadId } = JSON.parse(uploadDetails);
         setStatus(status); // Set the status from the storage
         if (status === 'uploading') {
           setFileName(fileName);
@@ -74,7 +74,7 @@ const UploadScreen: React.FC = () => {
     };
     initializeUpload();
     // Clean up the event listener when the component unmounts
-    return () => {};
+    return () => { };
   }, []);
 
   const selectLargeFile = async () => {
@@ -260,7 +260,7 @@ const UploadScreen: React.FC = () => {
     <View
       style={[
         styles.container,
-        {backgroundColor: colorScheme === 'dark' ? '#333' : '#fff'},
+        { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' },
       ]}>
       <TouchableOpacity
         style={styles.clearAllButton}
@@ -275,8 +275,8 @@ const UploadScreen: React.FC = () => {
         {isConnected === null
           ? 'Checking network...'
           : isConnected
-          ? 'Connected to the internet'
-          : 'No internet connection'}
+            ? 'Connected to the internet'
+            : 'No internet connection'}
       </Text>
 
       <Text style={styles.title}>
@@ -299,7 +299,7 @@ const UploadScreen: React.FC = () => {
       {(status === 'uploading' || status === 'completed') && (
         <>
           {progress < 100 && (
-            <Text style={styles.processingText && {paddingBottom: 18}}>
+            <Text style={styles.processingText && { paddingBottom: 18 }}>
               Uploading{paused ? ' paused' : '....'}
             </Text>
           )}
@@ -335,14 +335,14 @@ const UploadScreen: React.FC = () => {
 
       {!uploadId && (
         <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-          <Text style={styles.buttonText}>Select File</Text>
+          <Text style={styles.buttonText}>Select File (Upto 500MB)</Text>
         </TouchableOpacity>
       )}
       {!uploadId && (
         <TouchableOpacity
-          style={[styles.selectButton, {margin: 10}]}
+          style={[styles.selectButton, { marginTop: 25 }]}
           onPress={selectLargeFile}>
-          <Text style={styles.buttonText}>File from Document Picker</Text>
+          <Text style={styles.buttonText}>File File from Document Picker</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   networkStatus: {
     position: 'absolute',
-    top: 110,
+    top: 200,
     fontSize: 14,
     color: '#fff',
     backgroundColor: '#007bff',
