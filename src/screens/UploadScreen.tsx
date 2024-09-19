@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
-
 import {
   View,
   Text,
@@ -26,7 +25,9 @@ import { requestNotificationPermission } from '../helper/util';
 import { deleteCachedFiles } from '../helper/FileUtils';
 import { requestPermissions } from '../helper/permission';
 import { int } from 'aws-sdk/clients/datapipeline';
+
 const MAX_FILE_SIZE_MB = 500;
+
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(1);
   const [uploadId, setUploadId] = useState<string | null>(null);
@@ -36,20 +37,20 @@ const UploadScreen: React.FC = () => {
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
-  const [isConnected, setIsConnected] = useState<int | null>(null); // Track internet status
+  const [isConnected, setIsConnected] = useState<int | null>(null);
+  const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
   useEffect(() => {
     const handleNetworkStatusChange = (internetStatus: int) => {
       setIsConnected(internetStatus);
-      // You can handle additional logic here based on network status
     };
     monitorNetworkChanges(handleNetworkStatusChange);
 
-    // Optional: Clean up if needed
     return () => {
       // Logic to stop monitoring network changes if applicable
     };
   }, []);
+
   useEffect(() => {
     const initializeUpload = async () => {
       const uploadDetails = await StorageHelper.getItem('uploadDetails');
@@ -57,7 +58,7 @@ const UploadScreen: React.FC = () => {
       const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
       if (uploadDetails) {
         const { fileName, uploadId } = JSON.parse(uploadDetails);
-        setStatus(status); // Set the status from the storage
+        setStatus(status);
         if (status === 'uploading') {
           setFileName(fileName);
           setFileType('mixed');
@@ -73,11 +74,11 @@ const UploadScreen: React.FC = () => {
       }
     };
     initializeUpload();
-    // Clean up the event listener when the component unmounts
     return () => { };
   }, []);
 
   const selectLargeFile = async () => {
+    setIsSelecting(true);
     requestPermissions();
     const hasPermission = await requestNotificationPermission();
     try {
@@ -86,10 +87,9 @@ const UploadScreen: React.FC = () => {
           type: [DocumentPicker.types.video],
         });
 
-        // Check if file size is manageable for the current platform
         if (result[0]?.size && result[0].size > 20 * 1024 * 1024 * 1024) {
-          // Example: 20GB limit
           console.log('File is too large to handle');
+          setIsSelecting(false);
           return;
         }
         console.log(
@@ -101,8 +101,6 @@ const UploadScreen: React.FC = () => {
         setFileName(result[0]?.name as string);
         setFileType(result[0]?.type as string);
         startUpload(result[0]?.uri as string, result[0]?.name as string);
-        // Handle large file upload using chunks
-        //  await startUploadInChunks(result[0]?.uri);
       } else {
         console.log('Notification permission denied');
       }
@@ -113,44 +111,11 @@ const UploadScreen: React.FC = () => {
         console.error('Error picking document:', err);
       }
     }
+    setIsSelecting(false);
   };
-  // const handleFileUri = async (uri: string) => {
-  //   if (Platform.OS === 'android') {
-  //     const filePath = await getRealFilePath(uri);
-  //     console.log('File Path:', filePath);
-  //     return filePath;
-  //   }
-  //   return uri;
-  // };
-  const startUploadInChunks = async (fileUri: string) => {
-    console.log('Starting upload in chunks', fileUri);
-    //const realFilePath = await handleFileUri(fileUri);
-    const chunkSize = 10 * 1024 * 1024; // 10MB chunks
-    const fileStat = await RNFS.stat(fileUri as string);
 
-    const fileSize = fileStat.size;
-    let start = 0;
-    let end = chunkSize;
-
-    while (start < fileSize) {
-      if (end > fileSize) {
-        end = fileSize;
-      }
-
-      try {
-        console.log(`Uploading chunk from ${start} to ${end}`);
-        // await uploadFileChunk(fileUri, start, end, chunkSize, 'https://your-upload-url.com');
-        start = end;
-        end = start + chunkSize;
-      } catch (err) {
-        console.error('Chunk upload failed:', err);
-        break;
-      }
-    }
-
-    console.log('File upload completed');
-  };
   const selectMedia = async () => {
+    setIsSelecting(true);
     const hasPermission = await requestNotificationPermission();
     try {
       if (hasPermission) {
@@ -164,7 +129,7 @@ const UploadScreen: React.FC = () => {
           if (result.assets && result.assets.length > 0) {
             const media = result.assets[0];
             const file = media;
-            const fileSizeMB = file.fileSize ?? 0 / (1024 * 1024); // Convert bytes to MB
+            const fileSizeMB = file.fileSize ?? 0 / (1024 * 1024);
             if (fileSizeMB > MAX_FILE_SIZE_MB) {
               Alert.alert(
                 'File Size Limit Exceeded',
@@ -172,7 +137,6 @@ const UploadScreen: React.FC = () => {
                 [{ text: 'OK' }]
               );
             } else {
-              // Proceed with file (file.uri)
               console.log('Selected file URI: ', file.uri);
               setFileName(media.fileName as string);
               setFileType(media.type as string);
@@ -186,6 +150,7 @@ const UploadScreen: React.FC = () => {
     } catch (err) {
       console.error('Error picking media:', err);
     }
+    setIsSelecting(false);
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
@@ -266,8 +231,7 @@ const UploadScreen: React.FC = () => {
         style={styles.clearAllButton}
         onPress={async () => {
           await handleClearAll();
-          // Refresh the UI by resetting relevant states
-          resetUpload(); // Call resetUpload to refresh the UI
+          resetUpload();
         }}>
         <Text style={styles.buttonText}>CLEAR DATA</Text>
       </TouchableOpacity>
@@ -289,10 +253,12 @@ const UploadScreen: React.FC = () => {
         </Text>
       )}
 
-      {status === 'processing' && (
-        <View style={styles.processingContainer}>
+      {(isSelecting || status === 'processing') && (
+        <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color="#007bff" />
-          <Text style={styles.processingText}>Processing...</Text>
+          <Text style={styles.loaderText}>
+            {isSelecting ? 'Selecting file...' : 'Processing...'}
+          </Text>
         </View>
       )}
 
@@ -333,17 +299,17 @@ const UploadScreen: React.FC = () => {
         </>
       )}
 
-      {!uploadId && (
-        <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
-          <Text style={styles.buttonText}>Select File (Upto 500MB)</Text>
-        </TouchableOpacity>
-      )}
-      {!uploadId && (
-        <TouchableOpacity
-          style={[styles.selectButton, { marginTop: 25 }]}
-          onPress={selectLargeFile}>
-          <Text style={styles.buttonText}>File File from Document Picker</Text>
-        </TouchableOpacity>
+      {!uploadId && !isSelecting && (
+        <>
+          <TouchableOpacity style={styles.selectButton} onPress={selectMedia}>
+            <Text style={styles.buttonText}>Select File (Up to 500MB)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.selectButton, { marginTop: 25 }]}
+            onPress={selectLargeFile}>
+            <Text style={styles.buttonText}>Select File from Document Picker</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
@@ -423,6 +389,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#007bff',
     padding: 10,
     borderRadius: 5,
+  },
+  loaderContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loaderText: {
+    marginTop: 10,
+    fontSize: 16,
   },
 });
 
