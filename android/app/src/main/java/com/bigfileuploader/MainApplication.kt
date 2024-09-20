@@ -45,6 +45,7 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
+
   }
   protected fun getPackages(): List<ReactPackage> {
     val packages: MutableList<ReactPackage> = ArrayList()

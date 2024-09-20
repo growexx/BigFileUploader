@@ -176,7 +176,7 @@ const uploadChunkWithRetry = async (
   retries = 0,
 ) => {
   try {
-    console.log('chunk upload started');
+    console.log('chunk upload started', Date.now());
     uploadInProgress = true;
     var fileProgress = 0;
     const byteCharacters = atob(chunk);
@@ -356,7 +356,6 @@ export const BackgroundChunkedUpload = async (
 };
 
 export const resumeUpload = async (
-  isPausedByUser: boolean,
   progressCallback?: (progress: number) => void,
 ) => {
   Toast.show({
@@ -365,10 +364,6 @@ export const resumeUpload = async (
   });
 
   isPaused = false;
-  // uploadParts = [];
-  console.log('Resume requested', isPausedByUser);
-  //if (!isPausedByUser) {
-    console.log('Resume requested by user');
     const uploadDetails = await StorageHelper.getItem(
       STORAGE_KEY_UPLOAD_DETAILS,
     );
@@ -376,13 +371,6 @@ export const resumeUpload = async (
     if (uploadDetails) {
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
       const {fileUri, fileName} = JSON.parse(uploadDetails);
-     // checkPersistedPermissions(fileUri);
-
-      // // const filePath: string = await getRealFilePath(fileUri);
-      // console.log('Real file path:', filePath);
-      // if (Platform.OS === 'android') {
-      //   takePersistableUriPermission(fileUri);
-      // }
       if (status === 'uploading' || status === 'paused') {
         BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
           if (progressCallback) {
@@ -391,10 +379,6 @@ export const resumeUpload = async (
         });
       }
     }
-  // } else {
-  //   console.log('Resume requested by auto matically');
-  //   isPaused = false;
-  // }
 };
 export const startUploadFile = async (
   fileUri: string | null,

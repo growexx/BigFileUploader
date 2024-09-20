@@ -22,7 +22,7 @@ import {
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
 import { requestNotificationPermission, requestStoragePermission } from '../helper/util';
-import {  deleteCachedFiles, pickVideo, requestManageExternalStoragePermission } from '../helper/FileUtils';
+import {  deleteCachedFiles, getRealFilePath, pickVideo, requestManageExternalStoragePermission } from '../helper/FileUtils';
 
 
 import BackgroundService from 'react-native-background-actions';
@@ -40,7 +40,8 @@ const UploadScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const [isConnected, setIsConnected] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
-
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [endTime, setEndTime] = useState<Date | null>(null);
   const handleNetworkStatusChange = useCallback(
     async (internetStatus: number, uploadInProgress: boolean) => {
       console.log('Network status changed:', internetStatus);
@@ -129,12 +130,15 @@ const UploadScreen: React.FC = () => {
           type: [DocumentPicker.types.video],
         });
 
-        if (result[0]?.size && result[0].size > 20 * 1024 * 1024 * 1024) {
+        if (result[0]?.size && result[0].size > 25 * 1024 * 1024 * 1024) {
           console.log('File is too large to handle');
           setIsSelecting(false);
           return;
         }
-       setFileName(result[0]?.name as string);
+       // const filePath = await getRealFilePath(result[0]?.uri);
+
+       console.log('Selected file:', result[0]?.uri);
+        setFileName(result[0]?.name as string);
         setFileType(result[0]?.type as string);
         startUpload(result[0]?.uri as string, result[0]?.name as string);
       } else {
@@ -191,6 +195,7 @@ const UploadScreen: React.FC = () => {
   };
 
   const startUpload = async (fileUri: string, fileName: string) => {
+    setStartTime(new Date(Date.now()));
     setUploadId('some-unique-id');
     setUploadCompleted(false);
     setStatus('processing');
@@ -207,6 +212,7 @@ const UploadScreen: React.FC = () => {
       startUploadFile(fileUri, fileName, (progress: number) => {
         setProgress(progress);
         if (progress === 100) {
+          setEndTime(new Date(Date.now()));
           setUploadCompleted(true);
           setStatus('completed');
         }
@@ -231,7 +237,7 @@ const UploadScreen: React.FC = () => {
 
   const togglePauseResume = async () => {
     if (paused) {
-      await resumeUpload(paused, (progress: number) => {
+      await resumeUpload((progress: number) => {
         setProgress(progress);
         if (progress === 100) {
           setUploadCompleted(true);
@@ -264,6 +270,16 @@ const UploadScreen: React.FC = () => {
         styles.container,
         { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' },
       ]}>
+         <Text style={[
+          styles.buttonText,
+          isConnected === 0 ? styles.disabledText : {},
+        ]}>{endTime ? `Upload Start Time: ${startTime}` : null}</Text>
+
+          <Text style={[
+            styles.buttonText,
+            isConnected === 0 ? styles.disabledText : {},
+          ]}>{endTime ? `Upload End Time: ${endTime}` : null}</Text>
+
       <TouchableOpacity
         style={[
           styles.clearAllButton,

@@ -149,6 +149,18 @@ class FileUtilsModule(private val reactContext: ReactApplicationContext) :
             )
         }
     }
+    fun getFilePathFromUri1(context: Context, uri: Uri?): String? {
+        var filePath: String? = null
+        val projection = arrayOf(MediaStore.MediaColumns.DATA)
+        val cursor = context.contentResolver.query(uri!!, projection, null, null, null)
+        if (cursor != null) {
+            cursor.moveToFirst()
+            val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
+            filePath = cursor.getString(columnIndex)
+            cursor.close()
+        }
+        return filePath
+    }
     // Method to get the real file path from URI
     @ReactMethod
     fun getRealPathFromURI(uriString: String?, promise: Promise) {

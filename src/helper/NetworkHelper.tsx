@@ -10,7 +10,6 @@ const NETWORK_LIMITS: { [key: string]: number } = {
 class NetworkHelper {
   static async getNetworkInfo() {
     const state = await NetInfo.fetch();
-    console.log('Network info: ' + JSON.stringify(state));
 
     return {
       isConnected: state.isConnected,

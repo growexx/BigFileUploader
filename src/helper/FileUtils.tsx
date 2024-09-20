@@ -5,7 +5,6 @@ const { FileUtils } = NativeModules;
 
 export const getRealFilePath = async (uri: string) => {
   try {
-
     console.log('Resolving file path:', uri);
     console.log('Resolving file FileUtils:', FileUtils);
     const filePath = await FileUtils.getRealPathFromURI(uri);
