@@ -1,5 +1,7 @@
 import {
+  cleanUpOldCache,
   createDynamicChukSize,
+  deleteFile,
   getUploadedChunks,
 } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
@@ -15,7 +17,7 @@ import StorageHelper, {
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { int } from 'aws-sdk/clients/datapipeline';
-import { checkPersistedPermissions, deleteCachedFiles } from '../helper/FileUtils';
+import {deleteCachedFiles } from '../helper/FileUtils';
 
 const MAX_RETRIES = 3;
 
@@ -40,32 +42,12 @@ const initiateUploadProcess = async (fileName: string, bucketName: string) => {
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
       previuseUploadId = await initiateUpload(bucketName, fileName);
     }
-  } else {
-    // await StorageHelper.setItem(STORAGE_KEY_STATUS, 'processing');
-    // previuseUploadId = await initiateUpload(bucketName, fileName);
   }
   uploadIds = previuseUploadId;
   return previuseUploadId;
 };
-// Function to delete a file
-const deleteFile = async (filePath: string) => {
-  RNFS.exists(filePath)
-    .then(exists => {
-      if (exists) {
-        return RNFS.unlink(filePath);
-      } else {
-        console.log('File does not exist:', filePath);
-      }
-    })
-    .then(() => {
-      console.log('File deleted successfully');
-    })
-    .catch(error => {
-      console.log('Failed to delete file:', error);
-    });
-};
 
-// Example usage after uploading
+
 const clearCacheAfterUpload = async (filePath: string) => {
   // After the upload is complete, clear the cache
   await deleteFile(filePath);
@@ -103,8 +85,7 @@ const uploadFileInChunks = async (
       const chunk = await RNFS.read(fileUri, end - start, start, 'base64');
       const uploadId = await initiateUploadProcess(fileName, bucketName);
       let totalProgress = 0;
-      // for (let i = 0; i < chunks.length; i++) {
-      const signedUrls = await getPresignedUrls(
+       const signedUrls = await getPresignedUrls(
         bucketName,
         uploadId,
         fileName,
@@ -114,7 +95,6 @@ const uploadFileInChunks = async (
       if (currentUploadCancelSource === null) {
         currentUploadCancelSource = axios.CancelToken.source();
       }
-      // const chunk = chunks[i];
       const signedUrl = signedUrls[0];
       const existingUploadDetailsString = await StorageHelper.getItem(
         STORAGE_KEY_UPLOAD_DETAILS,
@@ -123,7 +103,6 @@ const uploadFileInChunks = async (
         ? JSON.parse(existingUploadDetailsString)
         : null;
       let uploadDetails = {
-        // signedUrl: signedUrl,
         uploadId: uploadId,
         fileUri: params.taskData.fileUri,
         fileName: params.taskData.fileName,
@@ -168,8 +147,12 @@ const uploadFileInChunks = async (
         uploadParts,
       );
       if (upload) {
+        await BackgroundService.updateNotification({
+          taskTitle: 'Upload Complete',
+          taskDesc: 'Your file has been uploaded successfully.',
+          progressBar: { max: 100, value: 100 },
+        });
         uploadInProgress = false;
-        console.log('upload', JSON.stringify(upload));
         await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
         await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
         await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
@@ -178,31 +161,11 @@ const uploadFileInChunks = async (
         progressCallback(100);
       }
     }
-
     // Proceed with the download or upload
     console.log('Starting data transfer...');
     clearCacheAfterUpload(fileUri);
   } catch (err) {
     console.log('Upload failed:', err);
-  }
-};
-const cleanUpOldCache = async () => {
-  await AsyncStorage.clear();
-  const cacheDir = RNFS.CachesDirectoryPath;
-  const files = await RNFS.readDir(cacheDir);
-  for (const file of files) {
-    const fileExists = await RNFS.exists(file.path);
-    if (fileExists) {
-      // Implement your logic to determine if the file is old or unused
-      // Example: Delete files older than 24 hours
-      const stats = await RNFS.stat(file.path);
-      const fileAge = Date.now() - stats.mtime;
-      const maxAge = 1 * 60 * 1000; // 1 Min
-
-      if (fileAge > maxAge) {
-        await RNFS.unlink(file.path);
-      }
-    }
   }
 };
 const uploadChunkWithRetry = async (
@@ -331,12 +294,10 @@ export const BackgroundChunkedUpload = async (
   if (!fileUri) {
     return;
   }
-
-
   const options = {
-    taskName: 'ExampleTask',
-    taskTitle: 'Example Background Task',
-    taskDesc: 'Running background task',
+    taskName: 'File Upload',
+    taskTitle: 'File uploaded in progress',
+    taskDesc: 'Running background upload',
     taskIcon: {
       name: 'ic_launcher',
       type: 'mipmap',
@@ -368,13 +329,6 @@ export const BackgroundChunkedUpload = async (
 
           // Check if the background task is running before updating the notification
           if (await BackgroundService.isRunning() && progress === 100) {
-            console.log(`Task is running. Updating notification with progress: ${progress}%`);
-            // Update the notification progress
-            await BackgroundService.updateNotification({
-              taskTitle: 'Upload Complete',
-              taskDesc: 'Your file has been uploaded successfully.',
-              progressBar: { max: 100, value: 100 },
-            });
             await BackgroundService.stop();
           } else {
             console.log('Background task is not running, skipping notification update.');

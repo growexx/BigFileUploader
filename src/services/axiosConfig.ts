@@ -48,7 +48,6 @@ export const completeUpload = async (uploadId: string, bucketName: string, key: 
     'key': key,
     'parts': parts,
   });
-  console.log('completeUpload : ' + JSON.stringify(response));
-
+  console.log('completeUpload');
   return response.data; // Contains completion message and location in S3
 };

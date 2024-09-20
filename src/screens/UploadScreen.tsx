@@ -22,8 +22,8 @@ import {
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
 import { requestNotificationPermission, requestStoragePermission } from '../helper/util';
-import { checkPersistedPermissions, checkPersistedUriPermission, deleteCachedFiles, getRealFilePath, pickVideo, requestManageExternalStoragePermission, takePersistableUriPermission } from '../helper/FileUtils';
-import { requestExternalStoragePermission, requestPermissions } from '../helper/permission';
+import {  deleteCachedFiles, pickVideo, requestManageExternalStoragePermission } from '../helper/FileUtils';
+
 
 import BackgroundService from 'react-native-background-actions';
 import LargeFilePicker from '../helper/LargeFilePicker';
@@ -40,8 +40,7 @@ const UploadScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const [isConnected, setIsConnected] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
- const [persistedUri, setPersistedUri] = useState(null);
-  const [hasPermission, setHasPermission] = useState(false);
+
   const handleNetworkStatusChange = useCallback(
     async (internetStatus: number, uploadInProgress: boolean) => {
       console.log('Network status changed:', internetStatus);
@@ -50,47 +49,25 @@ const UploadScreen: React.FC = () => {
 
       // Update connection status
       setIsConnected(internetStatus);
-
       // Check if the internet is disconnected and upload is in progress
       if (internetStatus === 0 && uploadInProgress) {
         if (!paused) {
           await pauseUpload();
           setPaused(true);
         }
-      } else {
-        // // Check if the upload is paused and needs to be resumed
-        // if (paused && uploadInProgress) {
-        //   await resumeUpload(true, (progress: number) => {
-        //     setProgress(progress);
-        //     if (progress === 100) {
-        //       setUploadCompleted(true);
-        //       setStatus('completed');
-        //     }
-        //   });
-        //   setPaused(false);
-        // }
       }
     },
-    [paused] // Dependency array
+    [paused]
   );
   useEffect(() => {
     monitorNetworkChanges(handleNetworkStatusChange);
     return () => {
-      // Add cleanup logic here if applicable
     };
   }, [handleNetworkStatusChange]);
 
   useEffect(() => {
 
     const initializeUpload = async () => {
-    //   const uri = await AsyncStorage.getItem('persistedUri');
-    //  // setPersistedUri(uri);
-    //  console.log('uri persistent:', uri);
-    //   if (uri) {
-    //     const permission = await checkPersistedUriPermission(uri);
-    //     console.log('permission:', permission);
-    //   }
-
     if (BackgroundService.isRunning()){
           console.log('upload in progress');
           console.log('Background service is running');
@@ -145,8 +122,7 @@ const UploadScreen: React.FC = () => {
   // requestFilePermission();
   await requestManageExternalStoragePermission();
    const hasPermission = await requestNotificationPermission();
-   const hasPermission1 = await requestStoragePermission();
-   console.log('hasPermission1:', hasPermission1);
+   await requestStoragePermission();
     try {
       if (hasPermission) {
         const result = await DocumentPicker.pick({
@@ -158,12 +134,7 @@ const UploadScreen: React.FC = () => {
           setIsSelecting(false);
           return;
         }
-        // if (Platform.OS === 'android') {
-        //   takePersistableUriPermission(result[0]?.uri);
-        // }
-        // const filePath = await getRealFilePath(result[0]?.uri);
-        // console.log('Selected file path:', filePath);
-        setFileName(result[0]?.name as string);
+       setFileName(result[0]?.name as string);
         setFileType(result[0]?.type as string);
         startUpload(result[0]?.uri as string, result[0]?.name as string);
       } else {
@@ -178,16 +149,8 @@ const UploadScreen: React.FC = () => {
     }
     setIsSelecting(false);
   };
-  const handlePickVideo = async () => {
-    const uri = await pickVideo();
-    if (uri !== undefined && uri !== null) {
-      setFileName('video.mp4');
-      setFileType('video/mp4');
-      startUpload(uri ,'video.mp4');
-    }
-  };
+
   const selectMedia = async () => {
-    requestPermissions();
     if (isConnected === 0) {return;} // Disable if offline
     setIsSelecting(true);
     const hasPermission = await requestNotificationPermission();
@@ -412,7 +375,7 @@ const UploadScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.selectButton, { marginTop: 25 }, isConnected === 0 ? styles.disabledButton : {}, // Conditional style for disabled state
             ]}
-            onPress={handlePickFile}
+            onPress={selectLargeFile}
             disabled={isConnected === 0}>
             <Text style={[
               styles.buttonText,

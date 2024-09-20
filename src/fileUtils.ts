@@ -1,9 +1,9 @@
 
-import Toast from 'react-native-toast-message';
 import DeviceInfo from 'react-native-device-info';
 import NetworkHelper from './helper/NetworkHelper';
 import StorageHelper, { STORAGE_KEY_CHUNKS } from './helper/LocalStorage';
 import RNFS from 'react-native-fs';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // Define the structure of the response from getDeviceMemory function
 interface DeviceMemory {
   totalMemory: number;
@@ -22,11 +22,9 @@ async function getDeviceMemory(): Promise<DeviceMemory> {
 const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 async function getDynamicChunkSize(): Promise<number> {
   // Get memory and network information
-  const { totalMemory, usableMemory } = await getDeviceMemory();
+  const {usableMemory } = await getDeviceMemory();
   const bandwidth = await NetworkHelper.getNetworkBandwidth();
-  console.log('totalMemory : ' + totalMemory);
-  console.log('usableMemory : ' + usableMemory);
-  // Set default chunk size (e.g., 5MB)
+   // Set default chunk size (e.g., 5MB)
   let chunkSize = DEFAULT_CHUNK_SIZE; // Default to 5MB
 
   // Adjust chunk size based on usable memory
@@ -56,51 +54,10 @@ async function getDynamicChunkSize(): Promise<number> {
       chunkSize = Math.min(chunkSize, 10 * 1024 * 1024); // Up to 10MB for fast networks (>= 20Mbps)
     }
   }
-
-  console.log('chunkSize : ' + chunkSize);
-
-  // Limit chunk size to a reasonable range (1MB to 10MB)
+// Limit chunk size to a reasonable range (1MB to 10MB)
   chunkSize = Math.max(1 * 1024 * 1024, Math.min(chunkSize, 20 * 1024 * 1024));
-  console.log('after limit chunkSize : ' + chunkSize);
   return chunkSize;
 }
-
-export const createFileChunks = async (fileUri: string) => {
-  try {
-    let uploadedChunkSize: any = 0;
-    const value = await StorageHelper.getItem(STORAGE_KEY_CHUNKS);
-    if (value !== null) {
-      uploadedChunkSize = Number(value);
-    }
-
-    const dynamicChunkSize = await getDynamicChunkSize();
-    const partNumbers = [];
-
-    const fileStats = await RNFS.stat(fileUri);
-    const fileSize = fileStats.size;
-    const remainingSize = fileSize - uploadedChunkSize;
-    const totalChunks = Math.ceil(remainingSize / dynamicChunkSize);
-    const chunks = [];
-    // Read file in chunks using `RNFS.read`
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * dynamicChunkSize + uploadedChunkSize;
-      const end = Math.min(start + dynamicChunkSize, fileSize);
-
-      const chunk = await RNFS.read(fileUri, end - start, start, 'base64'); // Read file chunk
-      chunks.push(chunk);
-      partNumbers.push(i + uploadedChunkSize === 0 ? 1 : i + uploadedChunkSize);
-    }
-
-    return { chunks, partNumbers, uploadedChunkSize, fileSize };
-  } catch (err) {
-    console.error('Chunks Failed:', err);
-    Toast.show({
-      type: 'error',
-      text1: 'Upload Error',
-      text2: 'An error occurred during the upload.',
-    });
-  }
-};
 
 export const createDynamicChukSize = async () => {
   const dynamicChunkSize = await getDynamicChunkSize();
@@ -117,3 +74,38 @@ export const getUploadedChunks = async () => {
   }
 };
 
+// Function to delete a file
+export const deleteFile = async (filePath: string) => {
+  RNFS.exists(filePath)
+    .then(exists => {
+      if (exists) {
+        return RNFS.unlink(filePath);
+      } else {
+        console.log('File does not exist:', filePath);
+      }
+    })
+    .then(() => {
+      console.log('File deleted successfully');
+    })
+    .catch(error => {
+      console.log('Failed to delete file:', error);
+    });
+};
+
+export const cleanUpOldCache = async () => {
+  await AsyncStorage.clear();
+  const cacheDir = RNFS.CachesDirectoryPath;
+  const files = await RNFS.readDir(cacheDir);
+  for (const file of files) {
+    const fileExists = await RNFS.exists(file.path);
+    if (fileExists) {
+      const stats = await RNFS.stat(file.path);
+      const fileAge = Date.now() - stats.mtime;
+      const maxAge = 1 * 60 * 1000; // 1 Min
+
+      if (fileAge > maxAge) {
+        await RNFS.unlink(file.path);
+      }
+    }
+  }
+};

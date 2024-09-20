@@ -81,30 +81,6 @@ static async  measureNetworkBandwidth(): Promise<number | null> {
         console.log('No active network connection');
         return null;
       }
-      // Network speed estimation logic
-      // let bandwidthEstimate;
-      // switch (networkType) {
-      //   case 'wifi':
-      //     bandwidthEstimate = 100 * 1024 * 1024; // Assume 50 Mbps for Wi-Fi
-      //     break;
-      //   case 'cellular':
-      //     // Estimate based on cellular connection type
-      //     if (state.details.cellularGeneration === '5g') {
-      //       bandwidthEstimate = 5 * 1024 * 1024; // Assume 10 Mbps for 4G
-      //     } else if (state.details.cellularGeneration === '4g') {
-      //       console.log('4g');
-      //       bandwidthEstimate = 3 * 1024 * 1024; // Assume 10 Mbps for 4G
-      //     } else if (state.details.cellularGeneration === '3g') {
-      //       bandwidthEstimate = 1 * 1024 * 1024; // Assume 2 Mbps for 3G
-      //     } else {
-      //       bandwidthEstimate = 0.5 * 1024 * 1024; // Assume 0.5 Mbps for lower generation
-      //     }
-      //     break;
-      //   default:
-      //     bandwidthEstimate = 1 * 1024 * 1024; // Assume 1 Mbps as a fallback
-      // }
-      // console.log('Bandwidth estimate: ' + bandwidthEstimate);
-      // return bandwidthEstimate; // Bandwidth in bytes per second
     }
 
     return null;
@@ -124,12 +100,9 @@ static async  measureNetworkBandwidth(): Promise<number | null> {
     });
     return false;
   }
-console.log('netInfo.type', netInfo.type);
   // Define the limit based on network type
   let dataLimit = NETWORK_LIMITS[netInfo.type] || 0; // default to 0 if unsupported network type
-  console.log('Data size: ' + dataSize);
-  console.log('Data limit: ' + dataLimit);
-  if (dataSize < dataLimit) {
+   if (dataSize < dataLimit) {
     // If the data size exceeds the limit, prompt to use Wi-Fi
     Toast.show({
       type: 'error',
