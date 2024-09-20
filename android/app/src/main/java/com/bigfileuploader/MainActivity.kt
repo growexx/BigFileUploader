@@ -1,12 +1,19 @@
 package com.bigfileuploader
 
+import android.content.Intent
+import android.net.Uri
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
+
 class MainActivity : ReactActivity() {
 
+    fun takePersistableUriPermission(uri: Uri) {
+        val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        contentResolver.takePersistableUriPermission(uri, takeFlags)
+    }
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
    * rendering of the component.

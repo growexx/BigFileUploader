@@ -4,7 +4,7 @@ import {
 } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import Toast from 'react-native-toast-message';
-import BackgroundActions from 'react-native-background-actions';
+import BackgroundService from 'react-native-background-actions';
 import {completeUpload, getPresignedUrls, initiateUpload} from './axiosConfig';
 import axios, {CancelTokenSource} from 'axios';
 import StorageHelper, {
@@ -15,7 +15,8 @@ import StorageHelper, {
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { int } from 'aws-sdk/clients/datapipeline';
-import { deleteCachedFiles } from '../helper/FileUtils';
+import { checkPersistedPermissions, deleteCachedFiles } from '../helper/FileUtils';
+
 const MAX_RETRIES = 3;
 
 let uploadParts: {ETag: string; PartNumber: number}[] = [];
@@ -122,15 +123,13 @@ const uploadFileInChunks = async (
         ? JSON.parse(existingUploadDetailsString)
         : null;
       let uploadDetails = {
-        signedUrl: signedUrl,
+        // signedUrl: signedUrl,
         uploadId: uploadId,
         fileUri: params.taskData.fileUri,
-        fileType: params.taskData.fileType,
-        bucketName: params.taskData.bucketName,
         fileName: params.taskData.fileName,
         partNumber: uploadParts.length + 1,
         etags: existingUploadDetails?.etags || [],
-        chunkProgress: 0,
+        chunkProgress: totalProgress,
       };
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
       await StorageHelper.setItem(
@@ -185,12 +184,6 @@ const uploadFileInChunks = async (
     clearCacheAfterUpload(fileUri);
   } catch (err) {
     console.log('Upload failed:', err);
-    if ((err as Error)?.message !== 'No network connection') {
-    //await StorageHelper.setItem(STORAGE_KEY_STATUS, 'failed');
-    await StorageHelper.removeItem(STORAGE_KEY_UPLOAD_DETAILS);
-    await StorageHelper.setItem(STORAGE_KEY_STATUS, 'completed');
-    await StorageHelper.setItem(STORAGE_KEY_CHUNKS, '0');
-    }
   }
 };
 const cleanUpOldCache = async () => {
@@ -314,14 +307,14 @@ export const pauseUpload = async () => {
     currentUploadCancelSource.cancel('Upload paused');
     currentUploadCancelSource = null; // Reset the cancel source
   }
-  BackgroundActions.stop();
+  BackgroundService.stop();
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'paused');
 };
 
 // Function to stop the background upload
 export const stopBackgroundUpload = async () => {
   isPaused = true;
-  await BackgroundActions.stop();
+  await BackgroundService.stop();
   if (currentUploadCancelSource) {
     currentUploadCancelSource.cancel('Upload paused');
     currentUploadCancelSource = null; // Reset the cancel source
@@ -338,6 +331,8 @@ export const BackgroundChunkedUpload = async (
   if (!fileUri) {
     return;
   }
+
+
   const options = {
     taskName: 'ExampleTask',
     taskTitle: 'Example Background Task',
@@ -360,7 +355,7 @@ export const BackgroundChunkedUpload = async (
 
   try {
     // Start the background task
-    await BackgroundActions.start(async (taskData) => {
+    await BackgroundService.start(async (taskData) => {
       console.log('Background upload started', taskData);
 
       try {
@@ -372,31 +367,32 @@ export const BackgroundChunkedUpload = async (
           }
 
           // Check if the background task is running before updating the notification
-          if (await BackgroundActions.isRunning() && progress === 100) {
+          if (await BackgroundService.isRunning() && progress === 100) {
             console.log(`Task is running. Updating notification with progress: ${progress}%`);
             // Update the notification progress
-            await BackgroundActions.updateNotification({
+            await BackgroundService.updateNotification({
               taskTitle: 'Upload Complete',
               taskDesc: 'Your file has been uploaded successfully.',
               progressBar: { max: 100, value: 100 },
             });
-            await BackgroundActions.stop();
+            await BackgroundService.stop();
           } else {
             console.log('Background task is not running, skipping notification update.');
+
           }
         });
       } catch (error) {
         console.error('Background upload error:', error);
         // Handle upload failure
-        if (await BackgroundActions.isRunning()) {
-          await BackgroundActions.updateNotification({
+        if (await BackgroundService.isRunning()) {
+          await BackgroundService.updateNotification({
             taskTitle: 'Upload Failed',
             taskDesc: 'There was an error uploading your file.',
           });
         }
       } finally {
         // Stop the background task after upload completes or fails
-        await BackgroundActions.stop();
+        await BackgroundService.stop();
       }
     }, options);
 
@@ -413,6 +409,7 @@ export const resumeUpload = async (
     type: 'info',
     text1: 'Uploading Resumed',
   });
+
   isPaused = false;
   // uploadParts = [];
   console.log('Resume requested', isPausedByUser);
@@ -425,6 +422,13 @@ export const resumeUpload = async (
     if (uploadDetails) {
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
       const {fileUri, fileName} = JSON.parse(uploadDetails);
+     // checkPersistedPermissions(fileUri);
+
+      // // const filePath: string = await getRealFilePath(fileUri);
+      // console.log('Real file path:', filePath);
+      // if (Platform.OS === 'android') {
+      //   takePersistableUriPermission(fileUri);
+      // }
       if (status === 'uploading' || status === 'paused') {
         BackgroundChunkedUpload(fileUri, fileName, (progress: number) => {
           if (progressCallback) {

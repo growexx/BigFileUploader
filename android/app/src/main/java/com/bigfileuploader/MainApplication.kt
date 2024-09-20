@@ -23,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
               add(FileUtilsPackage())
+              add(LargeFilePickerPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
@@ -49,6 +50,7 @@ class MainApplication : Application(), ReactApplication {
     val packages: MutableList<ReactPackage> = ArrayList()
     packages.add(MainReactPackage())
     packages.add(FileUtilsPackage()) // Add your custom package here
+    packages.add(LargeFilePickerPackage())
     return packages
   }
 }

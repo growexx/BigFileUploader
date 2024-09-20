@@ -21,10 +21,12 @@ import {
 } from '../services/uploadService';
 import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
-import { requestNotificationPermission } from '../helper/util';
-import { deleteCachedFiles } from '../helper/FileUtils';
-import { requestPermissions } from '../helper/permission';
+import { requestNotificationPermission, requestStoragePermission } from '../helper/util';
+import { checkPersistedPermissions, checkPersistedUriPermission, deleteCachedFiles, getRealFilePath, pickVideo, requestManageExternalStoragePermission, takePersistableUriPermission } from '../helper/FileUtils';
+import { requestExternalStoragePermission, requestPermissions } from '../helper/permission';
 
+import BackgroundService from 'react-native-background-actions';
+import LargeFilePicker from '../helper/LargeFilePicker';
 const MAX_FILE_SIZE_MB = 500;
 
 const UploadScreen: React.FC = () => {
@@ -38,7 +40,8 @@ const UploadScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const [isConnected, setIsConnected] = useState<number | null>(null);
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
-
+ const [persistedUri, setPersistedUri] = useState(null);
+  const [hasPermission, setHasPermission] = useState(false);
   const handleNetworkStatusChange = useCallback(
     async (internetStatus: number, uploadInProgress: boolean) => {
       console.log('Network status changed:', internetStatus);
@@ -78,34 +81,72 @@ const UploadScreen: React.FC = () => {
   }, [handleNetworkStatusChange]);
 
   useEffect(() => {
+
     const initializeUpload = async () => {
-      const uploadDetails = await StorageHelper.getItem('uploadDetails');
-      const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
-      if (uploadDetails) {
-        const { fileName, uploadId } = JSON.parse(uploadDetails);
-        setStatus(status);
-        if (status === 'uploading') {
-          setFileName(fileName);
-          setFileType('mixed');
-          setUploadId(uploadId);
-          resumeUpload(false, (progress: number) => {
-            setProgress(progress);
-            if (progress === 100) {
-              setUploadCompleted(true);
-              setStatus('completed');
-            }
-          });
-        }
-      }
+    //   const uri = await AsyncStorage.getItem('persistedUri');
+    //  // setPersistedUri(uri);
+    //  console.log('uri persistent:', uri);
+    //   if (uri) {
+    //     const permission = await checkPersistedUriPermission(uri);
+    //     console.log('permission:', permission);
+    //   }
+
+    if (BackgroundService.isRunning()){
+          console.log('upload in progress');
+          console.log('Background service is running');
+    }
+      // requestPermissions();
+      // await requestExternalStoragePermission();
+     // requestExternalStoragePermission();
+      // const uploadDetails = await StorageHelper.getItem('uploadDetails');
+      // console.log('uploadDetails@!@@@@@:', uploadDetails);
+      // const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
+      // console.log('status@!@@@@@:', status);
+      // if (uploadDetails) {
+      //   const { fileName, uploadId, fileUri } = JSON.parse(uploadDetails);
+      //   checkPersistedPermissions(fileUri);
+      //   setStatus(status);
+      //   if (status === 'uploading') {
+      //     setFileName(fileName);
+      //     setFileType('mixed');
+      //     setUploadId(uploadId);
+      //     resumeUpload(false, (progress: number) => {
+      //       setProgress(progress);
+      //       if (progress === 100) {
+      //         setUploadCompleted(true);
+      //         setStatus('completed');
+      //       }
+      //     });
+      //   }
+      // }
     };
     initializeUpload();
     return () => { };
   }, []);
-
+  const handlePickFile = async () => {
+    try {
+      const filePath = await LargeFilePicker.openFilePicker();
+      // const fileDetails = await LargeFilePicker.getFileDetails(filePath);
+      // console.log('File Name:', fileDetails.fileName);
+    console.log('File Path:', filePath);
+   // const fileStat = await RNFS.stat(filePath);
+    //const fileSize = fileStat.size;
+  //  console.log('fileSize',fileSize);
+    } catch (error) {
+      Alert.alert('Error', (error as Error).message);
+    }
+  };
   const selectLargeFile = async () => {
-   requestPermissions();
+
+  //  requestPermissions();
+  //  requestPermissions();
+  // // requestFilePermission();
+  //   requestPermissions();
   // requestFilePermission();
+  await requestManageExternalStoragePermission();
    const hasPermission = await requestNotificationPermission();
+   const hasPermission1 = await requestStoragePermission();
+   console.log('hasPermission1:', hasPermission1);
     try {
       if (hasPermission) {
         const result = await DocumentPicker.pick({
@@ -117,12 +158,11 @@ const UploadScreen: React.FC = () => {
           setIsSelecting(false);
           return;
         }
-        console.log(
-          'Selected file: ',
-          result[0]?.uri,
-          result[0]?.size,
-          result[0]?.name,
-        );
+        // if (Platform.OS === 'android') {
+        //   takePersistableUriPermission(result[0]?.uri);
+        // }
+        // const filePath = await getRealFilePath(result[0]?.uri);
+        // console.log('Selected file path:', filePath);
         setFileName(result[0]?.name as string);
         setFileType(result[0]?.type as string);
         startUpload(result[0]?.uri as string, result[0]?.name as string);
@@ -138,8 +178,16 @@ const UploadScreen: React.FC = () => {
     }
     setIsSelecting(false);
   };
-
+  const handlePickVideo = async () => {
+    const uri = await pickVideo();
+    if (uri !== undefined && uri !== null) {
+      setFileName('video.mp4');
+      setFileType('video/mp4');
+      startUpload(uri ,'video.mp4');
+    }
+  };
   const selectMedia = async () => {
+    requestPermissions();
     if (isConnected === 0) {return;} // Disable if offline
     setIsSelecting(true);
     const hasPermission = await requestNotificationPermission();
@@ -364,7 +412,7 @@ const UploadScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.selectButton, { marginTop: 25 }, isConnected === 0 ? styles.disabledButton : {}, // Conditional style for disabled state
             ]}
-            onPress={selectLargeFile}
+            onPress={handlePickFile}
             disabled={isConnected === 0}>
             <Text style={[
               styles.buttonText,

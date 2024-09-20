@@ -35,11 +35,11 @@ export const requestPermissions = async () => {
         console.log('Permission denied by the user');
       } else if (result === RESULTS.BLOCKED) {
         console.log('Permission blocked, directing user to settings...');
-       // openSettings();
+       openSettings();
       }
     } else if (permissionStatus === RESULTS.BLOCKED) {
       console.log('Permission blocked, directing user to settings...');
-    //  openSettings();
+     openSettings();
     }
   } catch (err) {
     console.error('Error while requesting permission:', err);
@@ -64,5 +64,24 @@ export const requestFilePermission = async () => {
     }
   } catch (err) {
     console.warn(err);
+  }
+};
+
+export const requestExternalStoragePermission = async () => {
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      {
+        title: 'External Storage Permission',
+        message: 'This app needs access to your external storage to read files.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      }
+    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  } catch (err) {
+    console.warn(err);
+    return false;
   }
 };
