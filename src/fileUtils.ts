@@ -23,7 +23,7 @@ const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 async function getDynamicChunkSize(): Promise<number> {
   // Get memory and network information
   const {usableMemory } = await getDeviceMemory();
-  const bandwidth = await NetworkHelper.getNetworkBandwidth();
+  const bandwidth = 10;//await NetworkHelper.getNetworkBandwidth();
   console.log('usableMemory : ' + usableMemory);
    // Set default chunk size (e.g., 5MB)
   let chunkSize = DEFAULT_CHUNK_SIZE; // Default to 5MB
@@ -46,13 +46,13 @@ async function getDynamicChunkSize(): Promise<number> {
   if (bandwidth) {
     if (bandwidth < 5) {
       console.log('Slow network (3G or lower): using 5MB chunks');
-      chunkSize = 20 * 1024 * 1024; // 1MB for slow networks (< 5Mbps)
+      chunkSize = 10 * 1024 * 1024; // 1MB for slow networks (< 5Mbps)
     } else if (bandwidth >= 5 && bandwidth < 20) {
       console.log('Medium network (4G): using 5MB chunks');
-      chunkSize = Math.min(chunkSize, 30 * 1024 * 1024); // 5MB for medium networks (5-20Mbps)
+      chunkSize = Math.min(chunkSize, 15 * 1024 * 1024); // 5MB for medium networks (5-20Mbps)
     } else if (bandwidth >= 20) {
       console.log('Fast network (5G or Wi-Fi): using 10MB chunks');
-      chunkSize = Math.min(chunkSize, 50 * 1024 * 1024); // Up to 10MB for fast networks (>= 20Mbps)
+      chunkSize = Math.min(chunkSize, 25 * 1024 * 1024); // Up to 10MB for fast networks (>= 20Mbps)
     }
   }
 // Limit chunk size to a reasonable range (1MB to 10MB)

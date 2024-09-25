@@ -47,15 +47,6 @@ export const deleteCachedFiles = async (dirPath: string, maxAgeInMs: number) => 
     });
   };
 
-  export const checkPersistedPermissions = async (videoUri: string) => {
-    try {
-     // readFileContent(videoUri);
-      const permissions = await FileUtils.checkPersistedUriPermissions();
-      console.log('Persisted URI Permissions:', permissions);
-    } catch (error) {
-      console.error('Error retrieving persisted URI permissions:', error);
-    }
-  };
 // Open document picker to select video and get persistable URI
 export const pickVideo = async () => {
   try {
@@ -66,18 +57,6 @@ export const pickVideo = async () => {
     return uri;
   } catch (error) {
     console.error('Error picking video:', error);
-  }
-};
-
-
-// Check persisted URI permissions
-export const checkPersistedUriPermission = async (uri: string) => {
-  try {
-    const permissions = await FileUtils.checkPersistedUriPermissions();
-    console.log('Persisted URI Permissions:', permissions);
-    return permissions;
-  } catch (error) {
-    console.error('Error checking permissions:', error);
   }
 };
 

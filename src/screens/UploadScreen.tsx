@@ -1,40 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/* eslint-disable @typescript-eslint/no-shadow */
+/* eslint-disable react-native/no-inline-styles */
+import React, {useState, useEffect, useCallback} from 'react';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   useColorScheme,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
-import { launchImageLibrary } from 'react-native-image-picker';
-import { Bar } from 'react-native-progress';
+import {Bar} from 'react-native-progress';
 import {
   monitorNetworkChanges,
   pauseUpload,
   resumeUpload,
+  resumeUploadAfterAppRestard,
   startUploadFile,
   stopBackgroundUpload,
 } from '../services/uploadService';
-import StorageHelper, { STORAGE_KEY_STATUS } from '../helper/LocalStorage';
+import StorageHelper, {STORAGE_KEY_STATUS} from '../helper/LocalStorage';
 import Toast from 'react-native-toast-message';
-import { requestNotificationPermission, requestStoragePermission } from '../helper/util';
-import {  deleteCachedFiles, getRealFilePath, pickVideo, requestManageExternalStoragePermission } from '../helper/FileUtils';
-
-
-import BackgroundService from 'react-native-background-actions';
-import LargeFilePicker from '../helper/LargeFilePicker';
-const MAX_FILE_SIZE_MB = 500;
+import {
+  requestNotificationPermission,
+  requestStoragePermission,
+} from '../helper/util';
+import {
+  deleteCachedFiles,
+  requestManageExternalStoragePermission,
+} from '../helper/FileUtils';
+import {styles} from './upload_style';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(1);
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [paused, setPaused] = useState<boolean>(false);
-  const [fileName, setFileName] = useState<string>('');
-  const [fileType, setFileType] = useState<string>('');
+  const [appRestarted, setAppRestarted] = useState<boolean>(false);
+  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [lastFileName, setlastFileName] = useState<string>('');
   const [uploadCompleted, setUploadCompleted] = useState<boolean>(false);
   const [status, setStatus] = useState<string | null>(null);
   const colorScheme = useColorScheme();
@@ -42,12 +45,10 @@ const UploadScreen: React.FC = () => {
   const [isSelecting, setIsSelecting] = useState<boolean>(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
+  const APP_RESTARTED_MESSAGE = `Your previous upload of "${lastFileName}" was interrupted. Please select the same file to continue.`;
+
   const handleNetworkStatusChange = useCallback(
     async (internetStatus: number, uploadInProgress: boolean) => {
-      console.log('Network status changed:', internetStatus);
-      console.log('uploadInProgress:', uploadInProgress);
-      console.log('uploadInProgress: paused', paused);
-
       // Update connection status
       setIsConnected(internetStatus);
       // Check if the internet is disconnected and upload is in progress
@@ -58,72 +59,73 @@ const UploadScreen: React.FC = () => {
         }
       }
     },
-    [paused]
+    [paused],
   );
   useEffect(() => {
     monitorNetworkChanges(handleNetworkStatusChange);
-    return () => {
-    };
+    return () => {};
   }, [handleNetworkStatusChange]);
-
   useEffect(() => {
-
     const initializeUpload = async () => {
-    if (BackgroundService.isRunning()){
-          console.log('upload in progress');
-          console.log('Background service is running');
-    }
-      // requestPermissions();
-      // await requestExternalStoragePermission();
-     // requestExternalStoragePermission();
-      // const uploadDetails = await StorageHelper.getItem('uploadDetails');
-      // console.log('uploadDetails@!@@@@@:', uploadDetails);
-      // const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
-      // console.log('status@!@@@@@:', status);
-      // if (uploadDetails) {
-      //   const { fileName, uploadId, fileUri } = JSON.parse(uploadDetails);
-      //   checkPersistedPermissions(fileUri);
-      //   setStatus(status);
-      //   if (status === 'uploading') {
-      //     setFileName(fileName);
-      //     setFileType('mixed');
-      //     setUploadId(uploadId);
-      //     resumeUpload(false, (progress: number) => {
-      //       setProgress(progress);
-      //       if (progress === 100) {
-      //         setUploadCompleted(true);
-      //         setStatus('completed');
-      //       }
-      //     });
-      //   }
-      // }
+      const lastUploadingStatus = await StorageHelper.getItem(
+        STORAGE_KEY_STATUS,
+      );
+      if (lastUploadingStatus === 'uploading') {
+        setAppRestarted(true);
+        const uploadDetails = await StorageHelper.getItem('uploadDetails');
+        if (uploadDetails) {
+          const {fileName} = JSON.parse(uploadDetails);
+          setlastFileName(fileName);
+        }
+      }
     };
     initializeUpload();
-    return () => { };
+    return () => {};
   }, []);
-  const handlePickFile = async () => {
-    try {
-      const filePath = await LargeFilePicker.openFilePicker();
-      // const fileDetails = await LargeFilePicker.getFileDetails(filePath);
-      // console.log('File Name:', fileDetails.fileName);
-    console.log('File Path:', filePath);
-   // const fileStat = await RNFS.stat(filePath);
-    //const fileSize = fileStat.size;
-  //  console.log('fileSize',fileSize);
-    } catch (error) {
-      Alert.alert('Error', (error as Error).message);
-    }
-  };
-  const selectLargeFile = async () => {
 
-  //  requestPermissions();
-  //  requestPermissions();
-  // // requestFilePermission();
-  //   requestPermissions();
-  // requestFilePermission();
-  await requestManageExternalStoragePermission();
-   const hasPermission = await requestNotificationPermission();
-   await requestStoragePermission();
+  const initializeCheckLastUpload = async (
+    newFileName: string,
+    newFileUri: string,
+    newFileType: string,
+  ) => {
+    const uploadDetails = await StorageHelper.getItem('uploadDetails');
+    const status = await StorageHelper.getItem(STORAGE_KEY_STATUS);
+    if (uploadDetails) {
+      const {fileName, uploadId, fileUri, fileType} = JSON.parse(uploadDetails);
+      console.log('uploadDetails:', fileName, uploadId, fileUri, fileType);
+      if (
+        newFileName === fileName &&
+        newFileUri === fileUri &&
+        newFileType === fileType
+      ) {
+        if (status === 'uploading') {
+          setUploadId(uploadId);
+          setAppRestarted(false);
+          setlastFileName('');
+          setSelectedFileName(newFileName);
+          resumeUploadAfterAppRestard(
+            newFileName,
+            newFileType,
+            newFileUri,
+            (progress: number) => {
+              setProgress(progress);
+              if (progress === 100) {
+                setUploadCompleted(true);
+                setStatus('completed');
+                return true;
+              }
+            },
+          );
+        }
+      }
+    }
+    return false;
+  };
+
+  const selectLargeFile = async () => {
+    await requestManageExternalStoragePermission();
+    const hasPermission = await requestNotificationPermission();
+    await requestStoragePermission();
     try {
       if (hasPermission) {
         const result = await DocumentPicker.pick({
@@ -135,12 +137,20 @@ const UploadScreen: React.FC = () => {
           setIsSelecting(false);
           return;
         }
-       // const filePath = await getRealFilePath(result[0]?.uri);
-
-       console.log('Selected file:', result[0]?.uri);
-        setFileName(result[0]?.name as string);
-        setFileType(result[0]?.type as string);
-        startUpload(result[0]?.uri as string, result[0]?.name as string);
+        // const filePath = await getRealFilePath(result[0]?.uri);
+        const isFileResumed = await initializeCheckLastUpload(
+          result[0]?.name as string,
+          result[0]?.uri as string,
+          result[0]?.type as string,
+        );
+        if (!isFileResumed) {
+          setSelectedFileName(result[0]?.name as string);
+          startUpload(
+            result[0]?.uri as string,
+            result[0]?.name as string,
+            result[0]?.type as string,
+          );
+        }
       } else {
         console.log('Notification permission denied');
       }
@@ -154,47 +164,12 @@ const UploadScreen: React.FC = () => {
     setIsSelecting(false);
   };
 
-  const selectMedia = async () => {
-    if (isConnected === 0) {return;} // Disable if offline
-    setIsSelecting(true);
-    const hasPermission = await requestNotificationPermission();
-    try {
-      if (hasPermission) {
-        const result = await launchImageLibrary({
-          mediaType: 'mixed',
-          includeBase64: false,
-        });
-        if (result.didCancel) {
-          console.log('User cancelled media picker');
-        } else if (result.assets && result.assets.length > 0) {
-          if (result.assets && result.assets.length > 0) {
-            const media = result.assets[0];
-            const file = media;
-            const fileSizeMB = file.fileSize ? file.fileSize / (1024 * 1024) : 0; // Convert bytes to MB
-            if (fileSizeMB > MAX_FILE_SIZE_MB) {
-              Alert.alert(
-                'File Size Limit Exceeded',
-                `The selected file exceeds the maximum allowed size of ${MAX_FILE_SIZE_MB} MB.`,
-                [{ text: 'OK' }]
-              );
-            } else {
-              console.log('Selected file URI: ', file.uri);
-              setFileName(media.fileName as string);
-              setFileType(media.type as string);
-              startUpload(media.uri as string, media.fileName as string);
-            }
-          }
-        }
-      } else {
-        console.log('Notification permission denied');
-      }
-    } catch (err) {
-      console.error('Error picking media:', err);
-    }
-    setIsSelecting(false);
-  };
-
-  const startUpload = async (fileUri: string, fileName: string) => {
+  const startUpload = async (
+    fileUri: string,
+    fileName: string,
+    fileType: string,
+  ) => {
+    setlastFileName('');
     setStartTime(new Date(Date.now()));
     setUploadId('some-unique-id');
     setUploadCompleted(false);
@@ -209,21 +184,26 @@ const UploadScreen: React.FC = () => {
           fileName,
         }),
       );
-      startUploadFile(fileUri, fileName, (progress: number) => {
-        setProgress(progress);
-        if (progress === 100) {
-          setEndTime(new Date(Date.now()));
-          setUploadCompleted(true);
-          setStatus('completed');
+      startUploadFile(fileUri, fileName, fileType, (progress: number) => {
+        if (progress === -1) {
+          resetUpload();
+        } else {
+          setProgress(progress);
+          if (progress === 100) {
+            setEndTime(new Date(Date.now()));
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
         }
       });
     }, 2000);
   };
 
   const resetUpload = async () => {
+    setAppRestarted(false);
     setProgress(1);
     setUploadId(null);
-    setFileName('');
+    setSelectedFileName('');
     setUploadCompleted(false);
     setStatus(null);
     stopBackgroundUpload();
@@ -238,10 +218,14 @@ const UploadScreen: React.FC = () => {
   const togglePauseResume = async () => {
     if (paused) {
       await resumeUpload((progress: number) => {
-        setProgress(progress);
-        if (progress === 100) {
-          setUploadCompleted(true);
-          setStatus('completed');
+        if (progress === -1) {
+          resetUpload();
+        } else {
+          setProgress(progress);
+          if (progress === 100) {
+            setUploadCompleted(true);
+            setStatus('completed');
+          }
         }
       });
       setPaused(false);
@@ -268,49 +252,54 @@ const UploadScreen: React.FC = () => {
     <View
       style={[
         styles.container,
-        { backgroundColor: colorScheme === 'dark' ? '#333' : '#fff' },
+        {backgroundColor: colorScheme === 'dark' ? '#333' : '#fff'},
       ]}>
-         <Text style={[
-          styles.buttonText,
-          isConnected === 0 ? styles.disabledText : {},
-        ]}>{endTime ? `Upload Start Time: ${startTime}` : null}</Text>
-
-          <Text style={[
-            styles.buttonText,
-            isConnected === 0 ? styles.disabledText : {},
-          ]}>{endTime ? `Upload End Time: ${endTime}` : null}</Text>
+      <Text style={[styles.buttonText]}>
+        {endTime ? `Upload Start Time: ${startTime}` : null}
+      </Text>
+      <Text style={[styles.buttonText]}>
+        {endTime ? `Upload End Time: ${endTime}` : null}
+      </Text>
 
       <TouchableOpacity
         style={[
           styles.clearAllButton,
           isConnected === 0 ? styles.disabledButton : {},
-        ]} onPress={async () => {
-          if (isConnected === 0) {return;} // Disable if offline
+        ]}
+        onPress={async () => {
+          if (isConnected === 0) {
+            return;
+          } // Disable if offline
           await handleClearAll();
           resetUpload();
         }}
         disabled={isConnected === 0}>
-        <Text style={[
-          styles.buttonText,
-          isConnected === 0 ? styles.disabledText : {},
-        ]}>CLEAR DATA</Text>
+        <Text
+          style={[
+            styles.buttonText,
+            isConnected === 0 ? styles.disabledText : {},
+          ]}>
+          CLEAR DATA
+        </Text>
       </TouchableOpacity>
-      <Text style={styles.networkStatus}>
+      <Text
+        style={[
+          styles.networkStatus,
+          {backgroundColor: isConnected === 0 ? 'gray' : '#007bff'},
+        ]}>
         {isConnected === null
           ? 'Checking network...'
           : isConnected
-            ? 'Connected to the internet'
-            : 'No internet connection'}
+          ? 'Connected'
+          : 'Offline'}
       </Text>
 
       <Text style={styles.title}>
-        Upload {fileType.includes('video') ? 'Video' : 'Image'}
+        {appRestarted ? APP_RESTARTED_MESSAGE : 'Upload Video File'}
       </Text>
 
-      {fileName && (
-        <Text style={styles.fileName}>
-          Selected {fileType.includes('video') ? 'Video' : 'Image'}: {fileName}
-        </Text>
+      {selectedFileName && (
+        <Text style={styles.fileName}>Selected Video File {selectedFileName}</Text>
       )}
 
       {(isSelecting || status === 'processing') && (
@@ -325,9 +314,22 @@ const UploadScreen: React.FC = () => {
       {(status === 'uploading' || status === 'completed') && (
         <>
           {progress < 100 && (
-            <Text style={[styles.processingText && { paddingBottom: 18 }, isConnected === 0 ? styles.disabledText : {}]}>
-              Uploading{paused ? ' paused' : '....'}
-            </Text>
+            <View style={styles.uploadStatusContainer}>
+              {!paused && (
+                <ActivityIndicator
+                  size="small"
+                  color="#007bff"
+                  style={styles.uploadLoader}
+                />
+              )}
+              <Text
+                style={[
+                  styles.processingText,
+                  isConnected === 0 ? styles.disabledText : {},
+                ]}>
+                {paused ? 'Uploading paused' : 'Uploading....'}
+              </Text>
+            </View>
           )}
           <View style={styles.progressContainer}>
             <Bar
@@ -341,21 +343,21 @@ const UploadScreen: React.FC = () => {
             <Text style={styles.progressText}>{Math.floor(progress)}%</Text>
           </View>
 
-
           {progress < 100 && !uploadCompleted && (
             <TouchableOpacity
               style={[
                 styles.pauseButton,
                 isConnected === 0 ? styles.disabledButton : {},
-              ]} onPress={togglePauseResume}
+              ]}
+              onPress={togglePauseResume}
               disabled={isConnected === 0}>
-              <Text style={[
-                styles.buttonText,
-                isConnected === 0 ? styles.disabledText : {},
-              ]}>
+              <Text
+                style={[
+                  styles.buttonText,
+                  isConnected === 0 ? styles.disabledText : {},
+                ]}>
                 {paused ? 'Resume' : 'Pause'}
               </Text>
-
             </TouchableOpacity>
           )}
 
@@ -364,12 +366,16 @@ const UploadScreen: React.FC = () => {
               style={[
                 styles.cancelButton,
                 isConnected === 0 ? styles.disabledButton : {},
-              ]} onPress={() => resetUpload()}
+              ]}
+              onPress={() => resetUpload()}
               disabled={isConnected === 0}>
-              <Text style={[
-                styles.buttonText,
-                isConnected === 0 ? styles.disabledText : {},
-              ]}>Start New Upload</Text>
+              <Text
+                style={[
+                  styles.buttonText,
+                  isConnected === 0 ? styles.disabledText : {},
+                ]}>
+                Start New Upload
+              </Text>
             </TouchableOpacity>
           )}
         </>
@@ -380,123 +386,23 @@ const UploadScreen: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.selectButton,
-              isConnected === 0 ? styles.disabledButton : {},
-            ]} onPress={selectMedia}
-            disabled={isConnected === 0}>
-            <Text style={[
-              styles.buttonText,
-              isConnected === 0 ? styles.disabledText : {},
-            ]}>Select File (Up to 500MB)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.selectButton, { marginTop: 25 }, isConnected === 0 ? styles.disabledButton : {}, // Conditional style for disabled state
+              {marginTop: 25},
+              isConnected === 0 ? styles.disabledButton : {}, // Conditional style for disabled state
             ]}
             onPress={selectLargeFile}
             disabled={isConnected === 0}>
-            <Text style={[
-              styles.buttonText,
-              isConnected === 0 ? styles.disabledText : {},
-            ]}>Select File from Documents</Text>
+            <Text
+              style={[
+                styles.buttonText,
+                isConnected === 0 ? styles.disabledText : {},
+              ]}>
+              Select File from Documents
+            </Text>
           </TouchableOpacity>
         </>
       )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#d3d3d3',
-  },
-  disabledText: {
-    color: '#a9a9a9',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  fileName: {
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  progressContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  progressBar: {
-    borderRadius: 5,
-  },
-  progressText: {
-    textAlign: 'center',
-    marginTop: 5,
-    fontSize: 16,
-  },
-  pauseButton: {
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 20,
-  },
-  cancelButton: {
-    backgroundColor: '#28a745',
-    padding: 10,
-    borderRadius: 5,
-    marginBottom: 20,
-  },
-  selectButton: {
-    backgroundColor: '#28a745',
-    padding: 10,
-    borderRadius: 5,
-    letterSpacing: 1,
-  },
-  clearAllButton: {
-    backgroundColor: '#6c757d',
-    padding: 10,
-    borderRadius: 5,
-    position: 'absolute',
-    top: 50,
-    right: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  processingContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  processingText: {
-    marginTop: 10,
-    fontSize: 16,
-  },
-  networkStatus: {
-    position: 'absolute',
-    top: 200,
-    fontSize: 14,
-    color: '#fff',
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
-  },
-  networkWarning: {
-    color: 'red',
-    marginTop: 20,
-  },
-  loaderContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  loaderText: {
-    marginTop: 10,
-    fontSize: 16,
-  },
-});
 
 export default UploadScreen;

@@ -1,0 +1,6 @@
+projectKey=react_native_large_file_upload
+serverUrl=https://quality.growexx.com
+serverVersion=8.9.10.61524
+dashboardUrl=https://quality.growexx.com/dashboard?id=react_native_large_file_upload
+ceTaskId=AZIOyahNj8atbKHRox9R
+ceTaskUrl=https://quality.growexx.com/api/ce/task?id=AZIOyahNj8atbKHRox9R
