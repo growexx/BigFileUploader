@@ -73,5 +73,9 @@
 			</dict>
 		</dict>
 	</array>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>document directory</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string></string>
 </dict>
 </plist>

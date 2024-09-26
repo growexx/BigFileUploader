@@ -23,7 +23,7 @@ const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 async function getDynamicChunkSize(): Promise<number> {
   // Get memory and network information
   const {usableMemory } = await getDeviceMemory();
-  const bandwidth = 10;//await NetworkHelper.getNetworkBandwidth();
+  const bandwidth = await NetworkHelper.getNetworkBandwidth();
   console.log('usableMemory : ' + usableMemory);
    // Set default chunk size (e.g., 5MB)
   let chunkSize = DEFAULT_CHUNK_SIZE; // Default to 5MB

@@ -3,7 +3,7 @@ import {AppRegistry} from 'react-native';
 import {name as appName} from './app.json';
 import Toast from 'react-native-toast-message';
 import {View, Text} from 'react-native'; // Import View and Text
-import '@react-native-firebase/app';
+// import '@react-native-firebase/app';
 import UploadScreen from './src/screens/UploadScreen';
 
 

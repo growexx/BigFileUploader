@@ -6,7 +6,7 @@ import {
 } from '../fileUtils';
 import NetworkHelper from '../helper/NetworkHelper';
 import Toast from 'react-native-toast-message';
-import BackgroundService from 'react-native-background-actions';
+import RNBackgroundActions from 'react-native-background-actions';
 import {completeUpload, getPresignedUrls, initiateUpload} from './axiosConfig';
 import axios, {CancelTokenSource} from 'axios';
 import StorageHelper, {
@@ -53,7 +53,18 @@ const clearCacheAfterUpload = async (filePath: string) => {
   await deleteFile(filePath);
   await cleanUpOldCache();
 };
-
+const moveFileToDocuments = async (tempFileUri: string, fileName: any) => {
+  console.log('tempFileUri', tempFileUri);
+  console.log('RNFS.DocumentDirectoryPath',RNFS.DocumentDirectoryPath);
+  const documentDir = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+  console.log('RNFS.DocumentDirectoryPathdocumentDir',);
+  if (await RNFS.exists(documentDir)) {
+    console.log('File already axis');
+    return documentDir;  // Remove existing file
+  } // Specify desired file name
+  await RNFS.moveFile(tempFileUri, documentDir);
+  return documentDir;
+};
 //chunks uploads to aws s3 signed url
 const uploadFileInChunks = async (
   params: any,
@@ -65,11 +76,18 @@ const uploadFileInChunks = async (
     if (!networkInfo.isConnected) {
       throw new Error('No network connection');
     }
-
-    const fileStat = await RNFS.stat(fileUri);
+    const docFilePath = await moveFileToDocuments(fileUri, fileName);
+    console.log('docFilePath', docFilePath);
+     uploadedChunk = (await getUploadedChunks()) || 0;
+    const fileExists = await RNFS.exists(docFilePath);
+    if (!fileExists) {
+        console.error('File does not exist:', fileUri);
+        return;
+    }
+    const fileStat = await RNFS.stat(docFilePath);
     const fileSize = fileStat.size;
-    uploadedChunk = (await getUploadedChunks()) || 0;
 
+    console.log('uploaded file size', fileSize);
     let start: number = uploadedChunk;
 
     let chunkSize = await createDynamicChukSize();
@@ -90,7 +108,14 @@ const uploadFileInChunks = async (
       if (end > fileSize) {
         end = fileSize;
       }
-      const chunk = await RNFS.read(fileUri, end - start, start, 'base64');
+      let chunk: any = 0;
+      try {
+         chunk = await RNFS.read(docFilePath, end - start, start, 'base64');
+        // Proceed with uploading the chunk
+    } catch (error) {
+        console.error('Error reading file chunk:', error);
+    }
+     // const chunk = await RNFS.read(fileUri, end - start, start, 'base64');
       const uploadId = await initiateUploadProcess(fileName, bucketName);
        const signedUrls = await getPresignedUrls(
         bucketName,
@@ -136,7 +161,7 @@ const uploadFileInChunks = async (
         },
       );
       start = end;
-      end = start + chunkSize;
+      end =    Math.min(start + chunkSize, fileStat.size);
       if(!isPaused) {
         totalProgress = (start / fileSize) * 100; //Math.round(((i + 1) / chunks.length) * 100);
         console.log('uploadedChunk start', start);
@@ -167,7 +192,7 @@ const uploadFileInChunks = async (
     }
     // Proceed with the download or upload
     console.log('Starting data transfer...');
-    clearCacheAfterUpload(fileUri);
+    clearCacheAfterUpload(docFilePath);
   } catch (err) {
     if (axios.isAxiosError(err)) {
       // Check if the error is AxiosError and handle specific status codes
@@ -291,7 +316,7 @@ export const pauseUpload = async () => {
     currentUploadCancelSource.cancel('Upload paused');
     currentUploadCancelSource = null; // Reset the cancel source
   }
-  BackgroundService.stop();
+  RNBackgroundActions.stop();
   await StorageHelper.setItem(STORAGE_KEY_STATUS, 'paused');
 };
 export const resumeUploadAfterAppRestard = async (fileName: string, fileType: string, fileURI: string,progressCallback?: (progress: number) => void,) => {
@@ -304,7 +329,7 @@ export const resumeUploadAfterAppRestard = async (fileName: string, fileType: st
 // Function to stop the background upload
 export const stopBackgroundUpload = async () => {
   isPaused = true;
-  await BackgroundService.stop();
+  await RNBackgroundActions.stop();
   if (currentUploadCancelSource) {
     currentUploadCancelSource.cancel('Upload paused');
     currentUploadCancelSource = null; // Reset the cancel source
@@ -344,7 +369,7 @@ export const BackgroundChunkedUpload = async (
 
   try {
     // Start the background task
-    await BackgroundService.start(async (taskData) => {
+    await RNBackgroundActions.start(async (taskData) => {
       console.log('Background upload started', taskData);
 
       try {
@@ -354,10 +379,10 @@ export const BackgroundChunkedUpload = async (
           if (progressCallback) {
             progressCallback(progress);
           }
-
+          console.log('Background upload progress:', await RNBackgroundActions.isRunning());
           // Check if the background task is running before updating the notification
-          if (await BackgroundService.isRunning() && progress === 100) {
-            await BackgroundService.stop();
+          if (await RNBackgroundActions.isRunning() && progress === 100) {
+            await RNBackgroundActions.stop();
           } else {
             console.log('Background task is not running, skipping notification update.');
 
@@ -366,15 +391,16 @@ export const BackgroundChunkedUpload = async (
       } catch (error) {
         console.error('Background upload error:', error);
         // Handle upload failure
-        if (await BackgroundService.isRunning()) {
-          await BackgroundService.updateNotification({
+        if (await RNBackgroundActions.isRunning()) {
+          await RNBackgroundActions.updateNotification({
             taskTitle: 'Upload Failed',
             taskDesc: 'There was an error uploading your file.',
           });
         }
       } finally {
+        console.log('Background upload completed');
         // Stop the background task after upload completes or fails
-        await BackgroundService.stop();
+        await RNBackgroundActions.stop();
       }
     }, options);
 
@@ -399,6 +425,7 @@ export const resumeUpload = async (
     if (uploadDetails) {
       await StorageHelper.setItem(STORAGE_KEY_STATUS, 'uploading');
       const {fileUri, fileName, fileType} = JSON.parse(uploadDetails);
+     // await deleteFile(fileUri);
       if (status === 'uploading' || status === 'paused') {
         BackgroundChunkedUpload(fileUri, fileName,fileType, (progress: number) => {
           if (progressCallback) {

@@ -30,6 +30,7 @@ import {
   requestManageExternalStoragePermission,
 } from '../helper/FileUtils';
 import {styles} from './upload_style';
+import { deleteFile } from '../fileUtils';
 
 const UploadScreen: React.FC = () => {
   const [progress, setProgress] = useState<number>(1);
@@ -98,7 +99,9 @@ const UploadScreen: React.FC = () => {
         newFileUri === fileUri &&
         newFileType === fileType
       ) {
+        console.log('save file path', fileUri);
         if (status === 'uploading') {
+          await RNFS.unlink(fileUri);
           setUploadId(uploadId);
           setAppRestarted(false);
           setlastFileName('');
@@ -131,7 +134,7 @@ const UploadScreen: React.FC = () => {
         const result = await DocumentPicker.pick({
           type: [DocumentPicker.types.video],
         });
-
+        console.log('File is to handle', result);
         if (result[0]?.size && result[0].size > 25 * 1024 * 1024 * 1024) {
           console.log('File is too large to handle');
           setIsSelecting(false);
